@@ -1,0 +1,2 @@
+add_executable(audio_loop_station main.cpp)
+target_link_libraries(audio_loop_station PRIVATE als_core als_audio als_storage als_ui als_warnings)
