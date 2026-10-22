@@ -5,7 +5,7 @@ FetchContent_Declare(
     GIT_TAG v3.7.1)
 FetchContent_MakeAvailable(Catch2)
 
-add_executable(als_tests test_smoke.cpp)
+add_executable(als_tests test_smoke.cpp test_sample_clock.cpp)
 target_link_libraries(als_tests PRIVATE als_core Catch2::Catch2WithMain als_warnings)
 
 include(Catch)
