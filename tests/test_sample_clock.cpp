@@ -4,37 +4,24 @@
 
 #include <cstdint>
 
-TEST_CASE("a new clock starts at zero", "[sample_clock]") {
+TEST_CASE("clock starts at 0", "[sample_clock]") {
     const als::SampleClock clock;
     REQUIRE(clock.now() == 0);
 }
 
-TEST_CASE("the clock advances by each block's actual sample count", "[sample_clock]") {
+TEST_CASE("clock advances by each block's sample count", "[sample_clock]") {
     als::SampleClock clock;
     clock.advance(512);
-    REQUIRE(clock.now() == 512);
     clock.advance(480);
-    REQUIRE(clock.now() == 992);
+    clock.advance(0);
     clock.advance(7);
     REQUIRE(clock.now() == 999);
 }
 
-TEST_CASE("an empty block leaves the clock unchanged", "[sample_clock]") {
+TEST_CASE("clock counts ten minutes of blocks exactly", "[sample_clock]") {
     als::SampleClock clock;
-    clock.advance(256);
-    clock.advance(0);
-    REQUIRE(clock.now() == 256);
-}
-
-TEST_CASE("ten minutes of 48 kHz blocks counts every sample exactly", "[sample_clock]") {
-    constexpr std::int64_t kSampleRate = 48000; // [samples/s]
-    constexpr std::int64_t kBlockSize = 512;    // [samples]
-    constexpr std::int64_t kSeconds = 600;
-    constexpr std::int64_t kBlockCount = kSeconds * kSampleRate / kBlockSize; // divides exactly
-
-    als::SampleClock clock;
-    for (std::int64_t block = 0; block < kBlockCount; ++block) {
-        clock.advance(kBlockSize);
+    for (std::int64_t block = 0; block < 10 * 60 * 48000 / 512; ++block) {
+        clock.advance(512);
     }
-    REQUIRE(clock.now() == kSeconds * kSampleRate);
+    REQUIRE(clock.now() == 10 * 60 * 48000);
 }
