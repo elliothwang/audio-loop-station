@@ -1,13 +1,13 @@
 # Audio Loop Station
 
-Audo Loop Station: a desktop looper for layering up to four mono tracks over a shared loop clock.
+Audo Loop Station: a desktop looper for layering up to four mono tracks over a shared sample clock.
 Team: Elliot Hwang, Hunter Shipman, Robert Thom.
 
 ## Layout
 
 | Folder     | Purpose                                                          | Framework headers allowed |
 | ---------- | ---------------------------------------------------------------- | ------------------------- |
-| `src/core/`    | Loop clock, track data, loop controller                      | No                        |
+| `src/core/`    | Sample clock, loop timing, track data, loop controller       | No                        |
 | `src/audio/`   | Audio engine: device I/O and callback                        | Yes (JUCE or miniaudio)   |
 | `src/storage/` | Save and load loops (one WAV per track plus a settings file) | No                        |
 | `src/ui/`      | Screens and controls                                         | Yes (JUCE or Dear ImGui)  |
