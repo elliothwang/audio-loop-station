@@ -10,6 +10,8 @@ class TrackRowComponent : public juce::Component {
     void resized() override;
 
   private:
+    void nudgeSlip(int deltaMs); // Move the slip offset and update its readout
+
     juce::Label nameLabel;
     juce::Label statusLabel;
 
@@ -25,6 +27,7 @@ class TrackRowComponent : public juce::Component {
     juce::TextButton slipEarlierButton{"-"};
     juce::TextButton slipLaterButton{"+"};
     juce::Label slipOffsetLabel;
+    int slipOffsetMs = 0; // [ms], kept here until rows are connected to tracks
 
     juce::ToggleButton muteButton{"Mute"};
     juce::TextButton deleteTrackButton{"Delete"};
