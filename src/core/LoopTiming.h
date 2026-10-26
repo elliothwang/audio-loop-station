@@ -22,6 +22,10 @@ struct LoopTiming {
 [[nodiscard]] std::size_t trackReadIndex(std::int64_t position, std::int64_t length,
                                          std::int64_t slip, bool reversed) noexcept;
 
+// Slip is set in milliseconds but applied in samples. Rounds to the nearest sample.
+[[nodiscard]] std::int64_t millisecondsToSamples(std::int64_t milliseconds,
+                                                 double sampleRate) noexcept;
+
 // Input arrives `latency` samples late, so it's written that far back.
 [[nodiscard]] std::size_t trackWriteIndex(std::int64_t position, std::int64_t length,
                                           std::int64_t latency) noexcept;
