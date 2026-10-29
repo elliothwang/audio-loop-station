@@ -2,14 +2,21 @@
 
 #include "TrackRowComponent.h"
 #include <juce_gui_basics/juce_gui_basics.h>
+#include <juce_audio_utils/juce_audio_utils.h>
 
-// Declare main UI component, behaviour in MainComponent.cpp
-class MainComponent : public juce::Component {
+// Declare main UI component, GUI behaviour in MainComponent.cpp
+class MainComponent : public juce::AudioAppComponent {
   public:
     MainComponent(); // Declare constructor to configure component
+    ~MainComponent() override; // Destructor
 
     void paint(juce::Graphics&) override; // background, custom graphics
     void resized() override;              // position controls
+
+    // AudioAppComponent functions defined in src/audio/MainComponentAudio.cpp
+    void prepareToPlay(int samplesPerBlockExpected, double sampleRate) override;        // logging
+    void releaseResources() override;                                                   // logging
+    void getNextAudioBlock(const juce::AudioSourceChannelInfo& bufferToFill) override;  // processing
 
   private:
     juce::Label titleLabel; // text label for component
@@ -27,6 +34,8 @@ class MainComponent : public juce::Component {
     TrackRowComponent track2{2};
     TrackRowComponent track3{3};
     TrackRowComponent track4{4};
+
+    juce::Random random; // TODO: remove Creates random values for generating white noise
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MainComponent)
 };

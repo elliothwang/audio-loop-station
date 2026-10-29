@@ -61,7 +61,12 @@ MainComponent::MainComponent() {
     };
 
     setSize(1200, 650);
+    setAudioChannels(0, 2);
 }
+
+MainComponent::~MainComponent(){
+    shutdownAudio();
+};
 
 void MainComponent::paint(juce::Graphics& graphics) {
     // fill background
