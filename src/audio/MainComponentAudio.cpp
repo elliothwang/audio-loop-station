@@ -39,21 +39,21 @@ void MainComponent::changeState(TransportState newState) {
     if (audioState != newState) {
         audioState = newState;
         switch (audioState) {
-            case Stopped:
-                stopButton.setEnabled(false);
-                playButton.setEnabled(true);
-                transportSource.setPosition(0.0);
-                break;
-            case Starting:
-                playButton.setEnabled(false);
-                transportSource.start();
-                break;
-            case Playing:
-                stopButton.setEnabled(true);
-                break;
-            case Stopping:
-                transportSource.stop();
-                break;
+        case Stopped:
+            stopButton.setEnabled(false);
+            playButton.setEnabled(true);
+            transportSource.setPosition(0.0);
+            break;
+        case Starting:
+            playButton.setEnabled(false);
+            transportSource.start();
+            break;
+        case Playing:
+            stopButton.setEnabled(true);
+            break;
+        case Stopping:
+            transportSource.stop();
+            break;
         }
     }
 }

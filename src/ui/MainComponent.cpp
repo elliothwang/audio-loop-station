@@ -3,9 +3,7 @@
 #include "SaveLoopComponent.h"
 
 // MainComponent constructor
-MainComponent::MainComponent() 
-    : audioState(Stopped)
-{
+MainComponent::MainComponent() : audioState(Stopped) {
     titleLabel.setText("Audio Loop Station - UI ready", juce::dontSendNotification);
 
     titleLabel.setJustificationType(juce::Justification::centred);
@@ -63,7 +61,7 @@ MainComponent::MainComponent()
 
         options.launchAsync();
     };
-    
+
     setSize(1200, 650);
 
     // ----- Audio work required here -----
@@ -72,17 +70,16 @@ MainComponent::MainComponent()
     transportSource.addChangeListener(this);
 
     // Audio button 'clicked' functions defined in src/audio/MainComponentAudio.cpp
-    playButton.onClick = [this] {playButtonClicked();};
-    playButton.setColour (juce::TextButton::buttonColourId, juce::Colours::green);
+    playButton.onClick = [this] { playButtonClicked(); };
+    playButton.setColour(juce::TextButton::buttonColourId, juce::Colours::green);
     playButton.setEnabled(false); // is enabled once user selects .wav
-    stopButton.onClick = [this] {stopButtonClicked();};
-    stopButton.setColour (juce::TextButton::buttonColourId, juce::Colours::red);
+    stopButton.onClick = [this] { stopButtonClicked(); };
+    stopButton.setColour(juce::TextButton::buttonColourId, juce::Colours::red);
     stopButton.setEnabled(false);
-    loadWavButton.onClick = [this] {loadWavButtonClicked();};
-    
+    loadWavButton.onClick = [this] { loadWavButtonClicked(); };
 }
 
-MainComponent::~MainComponent(){
+MainComponent::~MainComponent() {
     shutdownAudio();
 };
 
@@ -106,7 +103,7 @@ void MainComponent::resized() {
 
     playButton.setBounds(buttonRow.removeFromLeft(140));
     buttonRow.removeFromLeft(10);
-    
+
     stopButton.setBounds(buttonRow.removeFromLeft(140));
     buttonRow.removeFromLeft(10);
 

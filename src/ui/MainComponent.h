@@ -16,7 +16,8 @@ class MainComponent : public juce::AudioAppComponent, public juce::ChangeListene
     // AudioAppComponent functions defined in src/audio/MainComponentAudio.cpp
     void prepareToPlay(int samplesPerBlockExpected, double sampleRate) override;
     void releaseResources() override;
-    void getNextAudioBlock(const juce::AudioSourceChannelInfo& bufferToFill) override; // Audio Callback
+    void
+    getNextAudioBlock(const juce::AudioSourceChannelInfo& bufferToFill) override; // Audio Callback
     void changeListenerCallback(juce::ChangeBroadcaster* source) override;
 
   private:
