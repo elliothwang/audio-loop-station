@@ -1,4 +1,5 @@
 #include "MainComponent.h"
+#include <juce_audio_utils/juce_audio_utils.h>
 #include <juce_gui_basics/juce_gui_basics.h>
 
 // Manage app's startup and shutdown
