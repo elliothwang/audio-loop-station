@@ -3,7 +3,9 @@
 #include "SaveLoopComponent.h"
 
 // MainComponent constructor
-MainComponent::MainComponent() {
+MainComponent::MainComponent() 
+    : audioState(Stopped)
+{
     titleLabel.setText("Audio Loop Station - UI ready", juce::dontSendNotification);
 
     titleLabel.setJustificationType(juce::Justification::centred);
@@ -12,9 +14,11 @@ MainComponent::MainComponent() {
 
     addAndMakeVisible(titleLabel);
     addAndMakeVisible(recordButton);
-    addAndMakeVisible(playStopButton);
+    addAndMakeVisible(playButton);
+    addAndMakeVisible(stopButton);
     addAndMakeVisible(saveLoopButton);
     addAndMakeVisible(loadLoopButton);
+    addAndMakeVisible(loadWavButton);
 
     addAndMakeVisible(track1);
     addAndMakeVisible(track2);
@@ -59,9 +63,23 @@ MainComponent::MainComponent() {
 
         options.launchAsync();
     };
-
+    
     setSize(1200, 650);
+
+    // ----- Audio work required here -----
     setAudioChannels(0, 2);
+    formatManager.registerBasicFormats();
+    transportSource.addChangeListener(this);
+
+    // Audio button 'clicked' functions defined in src/audio/MainComponentAudio.cpp
+    playButton.onClick = [this] {playButtonClicked();};
+    playButton.setColour (juce::TextButton::buttonColourId, juce::Colours::green);
+    playButton.setEnabled(false); // is enabled once user selects .wav
+    stopButton.onClick = [this] {stopButtonClicked();};
+    stopButton.setColour (juce::TextButton::buttonColourId, juce::Colours::red);
+    stopButton.setEnabled(false);
+    loadWavButton.onClick = [this] {loadWavButtonClicked();};
+    
 }
 
 MainComponent::~MainComponent(){
@@ -86,13 +104,19 @@ void MainComponent::resized() {
     recordButton.setBounds(buttonRow.removeFromLeft(140));
     buttonRow.removeFromLeft(10);
 
-    playStopButton.setBounds(buttonRow.removeFromLeft(140));
+    playButton.setBounds(buttonRow.removeFromLeft(140));
+    buttonRow.removeFromLeft(10);
+    
+    stopButton.setBounds(buttonRow.removeFromLeft(140));
     buttonRow.removeFromLeft(10);
 
     saveLoopButton.setBounds(buttonRow.removeFromLeft(140));
     buttonRow.removeFromLeft(10);
 
     loadLoopButton.setBounds(buttonRow.removeFromLeft(140));
+    buttonRow.removeFromLeft(10);
+
+    loadWavButton.setBounds(buttonRow.removeFromLeft(140));
 
     area.removeFromTop(20);
 
