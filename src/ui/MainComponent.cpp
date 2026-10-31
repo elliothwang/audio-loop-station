@@ -75,6 +75,12 @@ MainComponent::MainComponent() {
     setSize(1200, 650);
 }
 
+void MainComponent::setTransportState(bool isPlaying, bool isRecording) {
+    playStopButton.setButtonText(isPlaying ? "Stop" : "Play");   // If playing then stop, otherwise play
+    recordButton.setButtonText(
+        isRecording ? "Finish Recording" : "Record");
+}
+
 void MainComponent::paint(juce::Graphics& graphics) {
     // fill background
     graphics.fillAll(juce::Colour(0xff20242b));

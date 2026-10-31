@@ -34,16 +34,27 @@ class AudioLoopStationApplication : public juce::JUCEApplication {
             setUsingNativeTitleBar(true);
            auto* mainComponent = new MainComponent();
 
-            mainComponent->OnRecordPress = []() {
-                DBG("Record button pressed");
+            mainComponent->OnRecordPress = [this, mainComponent]() {
+                demoIsRecording = !demoIsRecording;
+                demoIsPlaying = true;
+
+                mainComponent->setTransportState(
+                    demoIsPlaying, demoIsRecording);
             };
 
-            mainComponent->OnPlayStopPress = []() {
-                DBG("Play/Stop button pressed");
+            mainComponent->OnPlayStopPress = [this, mainComponent]() {
+                demoIsPlaying = !demoIsPlaying;
+
+                if (!demoIsPlaying) {
+                    demoIsRecording = false;
+                }
+
+                mainComponent->setTransportState(
+                    demoIsPlaying, demoIsRecording);
             };
 
-            setContentOwned(mainComponent, true);
-            // Put UI inside window.
+            mainComponent->setTransportState(false, false);
+            setContentOwned(mainComponent, true);   // Put UI inside window.
             setResizable(true, false);
             centreWithSize(getWidth(), getHeight());
             setVisible(true);
@@ -53,6 +64,9 @@ class AudioLoopStationApplication : public juce::JUCEApplication {
         void closeButtonPressed() override {
             juce::JUCEApplication::getInstance()->systemRequestedQuit();
         }
+    private:
+        bool demoIsPlaying = false;     // State demo
+        bool demoIsRecording = false;   // State demo
     };
 
     std::unique_ptr<MainWindow> mainWindow;

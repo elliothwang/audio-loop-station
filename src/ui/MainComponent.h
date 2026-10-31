@@ -12,6 +12,8 @@ class MainComponent : public juce::Component {
     std::function<void()> OnRecordPress;
     std::function<void()> OnPlayStopPress;
 
+    void setTransportState(bool isPlaying, bool isRecording);
+
     void paint(juce::Graphics&) override; // background, custom graphics
     void resized() override;              // position controls
 
