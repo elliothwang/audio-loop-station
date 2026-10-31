@@ -126,6 +126,23 @@ TEST_CASE("every sample plays once per pass", "[loop_timing]") {
     }
 }
 
+TEST_CASE("milliseconds round to the nearest sample", "[loop_timing]") {
+    REQUIRE(als::millisecondsToSamples(0, 48000.0) == 0);
+    REQUIRE(als::millisecondsToSamples(10, 48000.0) == 480);
+    REQUIRE(als::millisecondsToSamples(-10, 48000.0) == -480);
+    REQUIRE(als::millisecondsToSamples(1, 44100.0) == 44);    // 44.1
+    REQUIRE(als::millisecondsToSamples(5, 44100.0) == 221);   // 220.5, away from zero
+    REQUIRE(als::millisecondsToSamples(-5, 44100.0) == -221); // same rounding when earlier
+}
+
+TEST_CASE("a slip set in milliseconds plays that much later", "[loop_timing]") {
+    constexpr double kSampleRate = 48000.0;
+    constexpr std::int64_t kOneSecondLoop = 48000;
+    const std::int64_t slip = als::millisecondsToSamples(10, kSampleRate);
+    REQUIRE(als::trackReadIndex(480, kOneSecondLoop, slip, false) == 0);
+    REQUIRE(als::trackReadIndex(0, kOneSecondLoop, -slip, false) == 480);
+}
+
 TEST_CASE("write index shifts back by latency", "[loop_timing]") {
     REQUIRE(als::trackWriteIndex(3, kLoopLength, 0) == 3);
     REQUIRE(als::trackWriteIndex(3, kLoopLength, 3) == 0);

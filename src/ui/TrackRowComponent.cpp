@@ -1,5 +1,11 @@
 #include "TrackRowComponent.h"
 
+namespace {
+
+constexpr int kSlipStepMs = 10; // [ms] per button press
+
+} // namespace
+
 // TrackRowComponent constructor
 TrackRowComponent::TrackRowComponent(int trackNumber) {
     // Create name label with provided track number
@@ -42,6 +48,11 @@ TrackRowComponent::TrackRowComponent(int trackNumber) {
     addAndMakeVisible(slipEarlierButton);
     addAndMakeVisible(slipLaterButton);
     addAndMakeVisible(slipOffsetLabel);
+
+    // "-" moves the track earlier, "+" later.
+    slipEarlierButton.onClick = [this]() { nudgeSlip(-kSlipStepMs); };
+    slipLaterButton.onClick = [this]() { nudgeSlip(kSlipStepMs); };
+
     addAndMakeVisible(muteButton);
     addAndMakeVisible(deleteTrackButton);
 }
@@ -84,4 +95,12 @@ void TrackRowComponent::resized() {
 
     slipOffsetLabel.setBounds(slipArea.removeFromLeft(65));
     slipLaterButton.setBounds(slipArea.removeFromLeft(65));
+}
+
+void TrackRowComponent::nudgeSlip(int deltaMs) {
+    slipOffsetMs += deltaMs;
+
+    // Show a sign on later offsets too, so +10 and -10 are easy to tell apart.
+    const juce::String sign = slipOffsetMs > 0 ? "+" : "";
+    slipOffsetLabel.setText(sign + juce::String(slipOffsetMs) + " ms", juce::dontSendNotification);
 }
