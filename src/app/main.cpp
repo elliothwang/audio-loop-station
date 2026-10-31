@@ -32,14 +32,13 @@ class AudioLoopStationApplication : public juce::JUCEApplication {
         explicit MainWindow(const juce::String& name)
             : DocumentWindow(name, juce::Colours::darkgrey, juce::DocumentWindow::allButtons) {
             setUsingNativeTitleBar(true);
-           auto* mainComponent = new MainComponent();
+            auto* mainComponent = new MainComponent();
 
             mainComponent->OnRecordPress = [this, mainComponent]() {
                 demoIsRecording = !demoIsRecording;
                 demoIsPlaying = true;
 
-                mainComponent->setTransportState(
-                    demoIsPlaying, demoIsRecording);
+                mainComponent->setTransportState(demoIsPlaying, demoIsRecording);
             };
 
             mainComponent->OnPlayStopPress = [this, mainComponent]() {
@@ -49,12 +48,11 @@ class AudioLoopStationApplication : public juce::JUCEApplication {
                     demoIsRecording = false;
                 }
 
-                mainComponent->setTransportState(
-                    demoIsPlaying, demoIsRecording);
+                mainComponent->setTransportState(demoIsPlaying, demoIsRecording);
             };
 
             mainComponent->setTransportState(false, false);
-            setContentOwned(mainComponent, true);   // Put UI inside window.
+            setContentOwned(mainComponent, true); // Put UI inside window.
             setResizable(true, false);
             centreWithSize(getWidth(), getHeight());
             setVisible(true);
@@ -64,9 +62,10 @@ class AudioLoopStationApplication : public juce::JUCEApplication {
         void closeButtonPressed() override {
             juce::JUCEApplication::getInstance()->systemRequestedQuit();
         }
-    private:
-        bool demoIsPlaying = false;     // State demo
-        bool demoIsRecording = false;   // State demo
+
+      private:
+        bool demoIsPlaying = false;   // State demo
+        bool demoIsRecording = false; // State demo
     };
 
     std::unique_ptr<MainWindow> mainWindow;

@@ -1,8 +1,8 @@
 #pragma once
 
 #include "TrackRowComponent.h"
-#include <juce_gui_basics/juce_gui_basics.h>
 #include <functional>
+#include <juce_gui_basics/juce_gui_basics.h>
 
 // Declare main UI component, behaviour in MainComponent.cpp
 class MainComponent : public juce::Component {

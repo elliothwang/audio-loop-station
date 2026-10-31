@@ -39,7 +39,7 @@ MainComponent::MainComponent() {
             OnPlayStopPress();
         }
     };
-    
+
     // Save Loop Dialog box handler
     saveLoopButton.onClick = [this]() {
         juce::DialogWindow::LaunchOptions options;
@@ -76,9 +76,9 @@ MainComponent::MainComponent() {
 }
 
 void MainComponent::setTransportState(bool isPlaying, bool isRecording) {
-    playStopButton.setButtonText(isPlaying ? "Stop" : "Play");   // If playing then stop, otherwise play
-    recordButton.setButtonText(
-        isRecording ? "Finish Recording" : "Record");
+    playStopButton.setButtonText(isPlaying ? "Stop"
+                                           : "Play"); // If playing then stop, otherwise play
+    recordButton.setButtonText(isRecording ? "Finish Recording" : "Record");
 }
 
 void MainComponent::paint(juce::Graphics& graphics) {
