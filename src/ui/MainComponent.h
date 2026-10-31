@@ -2,11 +2,15 @@
 
 #include "TrackRowComponent.h"
 #include <juce_gui_basics/juce_gui_basics.h>
+#include <functional>
 
 // Declare main UI component, behaviour in MainComponent.cpp
 class MainComponent : public juce::Component {
   public:
     MainComponent(); // Declare constructor to configure component
+
+    std::function<void()> OnRecordPress;
+    std::function<void()> OnPlayStopPress;
 
     void paint(juce::Graphics&) override; // background, custom graphics
     void resized() override;              // position controls

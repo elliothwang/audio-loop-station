@@ -28,6 +28,18 @@ MainComponent::MainComponent() {
     loopTimeLabel.setJustificationType(juce::Justification::centredRight);
     addAndMakeVisible(loopTimeLabel);
 
+    recordButton.onClick = [this]() {
+        if (OnRecordPress) {
+            OnRecordPress();
+        }
+    };
+
+    playStopButton.onClick = [this]() {
+        if (OnPlayStopPress) {
+            OnPlayStopPress();
+        }
+    };
+    
     // Save Loop Dialog box handler
     saveLoopButton.onClick = [this]() {
         juce::DialogWindow::LaunchOptions options;

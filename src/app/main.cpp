@@ -32,7 +32,18 @@ class AudioLoopStationApplication : public juce::JUCEApplication {
         explicit MainWindow(const juce::String& name)
             : DocumentWindow(name, juce::Colours::darkgrey, juce::DocumentWindow::allButtons) {
             setUsingNativeTitleBar(true);
-            setContentOwned(new MainComponent(), true); // Put UI inside window.
+           auto* mainComponent = new MainComponent();
+
+            mainComponent->OnRecordPress = []() {
+                DBG("Record button pressed");
+            };
+
+            mainComponent->OnPlayStopPress = []() {
+                DBG("Play/Stop button pressed");
+            };
+
+            setContentOwned(mainComponent, true);
+            // Put UI inside window.
             setResizable(true, false);
             centreWithSize(getWidth(), getHeight());
             setVisible(true);
