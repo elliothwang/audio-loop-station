@@ -130,3 +130,77 @@ AudioRecorder::RecordingState AudioRecorder::getState() const noexcept
 {
     return state.load();
 }
+
+juce::Result AudioRecorder::saveToWav(const juce::File& destination)
+{
+    auto expected = RecordingState::Ready;   // Only save when recording ready
+
+    // Only save if finished recording. If state Ready, change to Recording.
+    if (!state.compare_exchange_strong(
+            expected, RecordingState::Saving))
+    {
+        return juce::Result::fail("Finish recording before saving.");
+    }
+
+    const auto result = [&]() -> juce::Result
+    {
+        // Check actual clip to save
+        if (recordedSampleCount <= 0 || recordingSampleRate <= 0.0)
+        {
+            return juce::Result::fail("There is no recorded audio to save.");
+        }
+
+        // Create temp file before replacing at destination one writing succeeds
+        juce::TemporaryFile temporaryFile(destination);
+        auto stream = temporaryFile.getFile().createOutputStream();  // output stream to write bytes to WAV file
+
+        // If file opening fails
+        if (stream == nullptr)
+        {
+            return juce::Result::fail("Could not open the file for writing.");
+        }
+
+        juce::WavAudioFormat wavFormat;   // WavAudioFormat organizes audio into WAV file
+
+        std::unique_ptr<juce::AudioFormatWriter> writer(
+            wavFormat.createWriterFor(
+                stream.get(),
+                recordingSampleRate,
+                1,    // 1 channel
+                24,   // Samples save with 24-bit
+                {},   // No added metadata
+                0));
+
+        // If writer creation fails
+        if (writer == nullptr)
+        {
+            return juce::Result::fail("Could not create the WAV writer.");
+        }
+
+        // The wav writer owns stream. unique_ptr no longer does
+        stream.release();
+
+        // Write samples from recording Buffer starting at 0 up to actual recordedSampleCount. Returns result T/F
+        const bool written = writer->writeFromAudioSampleBuffer(
+            recordingBuffer, 0, recordedSampleCount);
+
+        // Close the writer and finish the WAV header.
+        writer.reset();
+
+        if (!written)
+        {
+            return juce::Result::fail("Could not write the recorded audio.");
+        }
+
+        // Move temp file to destination, replace if needed.
+        if (!temporaryFile.overwriteTargetFileWithTemporary())
+        {
+            return juce::Result::fail("Could not save to the selected location.");
+        }
+
+        return juce::Result::ok();
+    }();
+
+    state.store(RecordingState::Ready);   // Update Recording state
+    return result;
+}

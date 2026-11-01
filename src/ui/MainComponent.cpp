@@ -86,6 +86,10 @@ MainComponent::MainComponent() : audioState(Stopped) {
             audioRecorder.requestStop();
             break;
 
+        // Do nothing while saving
+        case AudioRecorder::RecordingState::Saving:
+            break;
+
         // Do nothing while audio thread finsishes stopping
         case AudioRecorder::RecordingState::StopRequested:
             break;
@@ -132,6 +136,10 @@ void MainComponent::timerCallback()
 
     case AudioRecorder::RecordingState::StopRequested:
         recordButton.setButtonText("Stopping...");
+        recordButton.setEnabled(false);
+        break;
+    case AudioRecorder::RecordingState::Saving:
+        recordButton.setButtonText("Saving...");
         recordButton.setEnabled(false);
         break;
     }

@@ -12,7 +12,8 @@ public:
             StartRequested,
             Recording,
             StopRequested,
-            Ready
+            Ready,
+            Saving
         };
     AudioRecorder() = default;   // C++ to provide normal constructor
     AudioRecorder(const AudioRecorder&) = delete;   // Prevent copying of recorder
@@ -22,6 +23,7 @@ public:
     bool requestStart();   // returned boolean will indicate if request accepted
     bool requestStop();
     void processInput(const float* inputSamples, int sampleCount);
+    juce::Result saveToWav(const juce::File& destination);
 
     RecordingState getState() const noexcept;
 
