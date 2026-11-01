@@ -3,6 +3,7 @@
 #include "TrackRowComponent.h"
 #include <juce_audio_utils/juce_audio_utils.h>
 #include <juce_gui_basics/juce_gui_basics.h>
+#include "AudioRecorder.h"
 
 // Declare main UI component, GUI behaviour in MainComponent.cpp
 class MainComponent : public juce::AudioAppComponent, public juce::ChangeListener {
@@ -40,6 +41,7 @@ class MainComponent : public juce::AudioAppComponent, public juce::ChangeListene
     TrackRowComponent track4{4};
 
     // ----- Audio, needs declared here -----
+    AudioRecorder audioRecorder;
     enum TransportState { Stopped, Starting, Playing, Stopping };
 
     /*

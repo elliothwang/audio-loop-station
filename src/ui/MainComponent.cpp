@@ -65,7 +65,7 @@ MainComponent::MainComponent() : audioState(Stopped) {
     setSize(1200, 650);
 
     // ----- Audio work required here -----
-    setAudioChannels(0, 2);
+    setAudioChannels(1, 2);   // 1 input for recording, 2 output channels for playback
     formatManager.registerBasicFormats();
     transportSource.addChangeListener(this);
 

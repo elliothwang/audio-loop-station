@@ -3,8 +3,9 @@
 #include "MainComponent.h"
 #include <juce_audio_utils/juce_audio_utils.h>
 
-// Pass info to any other potential AudioSource's
+// Pass info to any other potential AudioSource's. Pass sample rate to recorder and prepare buffer.
 void MainComponent::prepareToPlay(int samplesPerBlockExpected, double sampleRate) {
+    audioRecorder.prepare(sampleRate);
     transportSource.prepareToPlay(samplesPerBlockExpected, sampleRate);
 }
 
