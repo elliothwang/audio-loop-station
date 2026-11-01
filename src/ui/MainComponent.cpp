@@ -69,6 +69,29 @@ MainComponent::MainComponent() : audioState(Stopped) {
     formatManager.registerBasicFormats();
     transportSource.addChangeListener(this);
 
+    recordButton.onClick = [this]() {
+        const auto currentState = audioRecorder.getState();
+
+        switch (currentState)
+        {
+        // If recorder state "Idle" or "Ready", request new recording
+        case AudioRecorder::RecordingState::Idle:
+        case AudioRecorder::RecordingState::Ready:
+            audioRecorder.requestStart();
+            break;
+
+        // If recorder state "StartRequested or Recording", request stop
+        case AudioRecorder::RecordingState::StartRequested:
+        case AudioRecorder::RecordingState::Recording:
+            audioRecorder.requestStop();
+            break;
+
+        // Do nothing while audio thread finsishes stopping
+        case AudioRecorder::RecordingState::StopRequested:
+            break;
+        }
+    };
+
     // Audio button 'clicked' functions defined in src/audio/MainComponentAudio.cpp
     playButton.onClick = [this] { playButtonClicked(); };
     playButton.setColour(juce::TextButton::buttonColourId, juce::Colours::green);
@@ -77,11 +100,42 @@ MainComponent::MainComponent() : audioState(Stopped) {
     stopButton.setColour(juce::TextButton::buttonColourId, juce::Colours::red);
     stopButton.setEnabled(false);
     loadWavButton.onClick = [this] { loadWavButtonClicked(); };
+
+    // Requests 20 UI updates/s
+    startTimerHz(20);
 }
 
 MainComponent::~MainComponent() {
+    stopTimer();
     shutdownAudio();
 };
+
+void MainComponent::timerCallback()
+{
+    switch (audioRecorder.getState())   // Get snapshot or recorder's current state. Set buttons appropriately.
+    {
+    case AudioRecorder::RecordingState::Idle:
+    case AudioRecorder::RecordingState::Ready:
+        recordButton.setButtonText("Record");
+        recordButton.setEnabled(true);
+        break;
+
+    case AudioRecorder::RecordingState::StartRequested:
+        recordButton.setButtonText("Starting...");
+        recordButton.setEnabled(true);
+        break;
+
+    case AudioRecorder::RecordingState::Recording:
+        recordButton.setButtonText("Finish Recording");
+        recordButton.setEnabled(true);
+        break;
+
+    case AudioRecorder::RecordingState::StopRequested:
+        recordButton.setButtonText("Stopping...");
+        recordButton.setEnabled(false);
+        break;
+    }
+}
 
 void MainComponent::paint(juce::Graphics& graphics) {
     // fill background

@@ -15,13 +15,32 @@ void MainComponent::releaseResources() {
     transportSource.releaseResources();
 }
 
-// Audio callback function responsible for processing audio, called from another thread.
-void MainComponent::getNextAudioBlock(const juce::AudioSourceChannelInfo& bufferToFill) {
+// Audio callback function responsible for processing audio, called repeatedly by JUCE on audio thread. Each call handles small audio block.
+void MainComponent::getNextAudioBlock(const juce::AudioSourceChannelInfo& bufferToFill){
+    const float* inputSamples = nullptr;   // pointer that will refer to microphone samples
 
-    if (readerSource.get() == nullptr) {
+    // Check that accessing buffer will be valid
+    if (bufferToFill.buffer != nullptr &&
+        bufferToFill.buffer->getNumChannels() > 0 &&
+        bufferToFill.numSamples > 0)
+    {
+        // Get address of samples to get access to samples in buffer
+        inputSamples = bufferToFill.buffer->getReadPointer(
+            0, bufferToFill.startSample);
+    }
+
+    // Capture microphone input if recording active and copy into audioRecorder buffer using processInput
+    audioRecorder.processInput(
+        inputSamples, bufferToFill.numSamples);
+
+    // Determine if there is a WAV file loaded for playback. If not, silence gets sent to speakers. Prevents microphone input going direct through to output speakers.
+    if (readerSource.get() == nullptr)
+    {
         bufferToFill.clearActiveBufferRegion();
         return;
     }
+
+    // Case where there is a WAV file loaded. Fill output buffer with WAV file audio.
     transportSource.getNextAudioBlock(bufferToFill);
 }
 

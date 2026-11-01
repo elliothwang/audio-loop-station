@@ -6,7 +6,9 @@
 #include "AudioRecorder.h"
 
 // Declare main UI component, GUI behaviour in MainComponent.cpp
-class MainComponent : public juce::AudioAppComponent, public juce::ChangeListener {
+class MainComponent : public juce::AudioAppComponent,
+                      public juce::ChangeListener,
+                      private juce::Timer {
   public:
     MainComponent();           // Declare constructor to configure component
     ~MainComponent() override; // Destructor
@@ -29,6 +31,7 @@ class MainComponent : public juce::AudioAppComponent, public juce::ChangeListene
     juce::TextButton saveLoopButton{"Save Loop"};
     juce::TextButton loadLoopButton{"Load Loop"};
     juce::TextButton loadWavButton{"Select .wav"}; // single wav until full loop implementation
+    void timerCallback() override;
 
     // progress bar declarations
     double loopProgress = 0.60; // placeholder value for progress bar
