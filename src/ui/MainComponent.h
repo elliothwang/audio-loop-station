@@ -1,9 +1,9 @@
 #pragma once
 
+#include "AudioRecorder.h"
 #include "TrackRowComponent.h"
 #include <juce_audio_utils/juce_audio_utils.h>
 #include <juce_gui_basics/juce_gui_basics.h>
-#include "AudioRecorder.h"
 
 // Declare main UI component, GUI behaviour in MainComponent.cpp
 class MainComponent : public juce::AudioAppComponent,
@@ -56,8 +56,9 @@ class MainComponent : public juce::AudioAppComponent,
     std::unique_ptr<juce::AudioFormatReaderSource> readerSource; // reads audio
     juce::AudioTransportSource transportSource;                  // controls playback
     TransportState audioState;                  // represents state of transportSource
-    std::unique_ptr<juce::FileChooser> chooser;   // object that chooses .wav file to play
-    std::unique_ptr<juce::FileChooser> saveClipChooser; // object to choose where to save a recording
+    std::unique_ptr<juce::FileChooser> chooser; // object that chooses .wav file to play
+    std::unique_ptr<juce::FileChooser>
+        saveClipChooser; // object to choose where to save a recording
 
     void changeState(TransportState newState);
     void playButtonClicked();

@@ -63,23 +63,19 @@ MainComponent::MainComponent() : audioState(Stopped) {
         options.launchAsync();
     };
 
-    saveClipButton.onClick = [this]() {
-        saveClipButtonClicked();
-    };
-
+    saveClipButton.onClick = [this]() { saveClipButtonClicked(); };
 
     setSize(1200, 650);
 
     // ----- Audio work required here -----
-    setAudioChannels(1, 2);   // 1 input for recording, 2 output channels for playback
+    setAudioChannels(1, 2); // 1 input for recording, 2 output channels for playback
     formatManager.registerBasicFormats();
     transportSource.addChangeListener(this);
 
     recordButton.onClick = [this]() {
         const auto currentState = audioRecorder.getState();
 
-        switch (currentState)
-        {
+        switch (currentState) {
         // If recorder state "Idle" or "Ready", request new recording
         case AudioRecorder::RecordingState::Idle:
         case AudioRecorder::RecordingState::Ready:
@@ -120,9 +116,9 @@ MainComponent::~MainComponent() {
     shutdownAudio();
 };
 
-void MainComponent::timerCallback()
-{
-    switch (audioRecorder.getState())   // Get snapshot or recorder's current state. Set buttons appropriately.
+void MainComponent::timerCallback() {
+    switch (audioRecorder
+                .getState()) // Get snapshot or recorder's current state. Set buttons appropriately.
     {
     case AudioRecorder::RecordingState::Idle:
     case AudioRecorder::RecordingState::Ready:
@@ -203,61 +199,46 @@ void MainComponent::resized() {
     track4.setBounds(area.removeFromTop(70));
 }
 
-void MainComponent::saveClipButtonClicked()
-{
+void MainComponent::saveClipButtonClicked() {
     // Check if recording finished
-    if (audioRecorder.getState() != AudioRecorder::RecordingState::Ready)
-    {
+    if (audioRecorder.getState() != AudioRecorder::RecordingState::Ready) {
         // Alert warning if saving before ready. TODO: update pending application design choices.
-        juce::AlertWindow::showMessageBoxAsync(
-            juce::MessageBoxIconType::WarningIcon,
-            "Save Clip",
-            "Record a clip and finish recording before saving.");
+        juce::AlertWindow::showMessageBoxAsync(juce::MessageBoxIconType::WarningIcon, "Save Clip",
+                                               "Record a clip and finish recording before saving.");
         return;
     }
 
     // Create file chooser, suggested location, .wav filetype filter
     saveClipChooser = std::make_unique<juce::FileChooser>(
         "Save recorded clip",
-        juce::File::getSpecialLocation(
-            juce::File::userDocumentsDirectory)
+        juce::File::getSpecialLocation(juce::File::userDocumentsDirectory)
             .getChildFile("recording.wav"),
         "*.wav");
 
-        // Chooser permissions. Opens in save mode, user chooses file, warning if file already exists.
-        const int saveChooserFlags =
-            juce::FileBrowserComponent::saveMode |
-            juce::FileBrowserComponent::canSelectFiles |
-            juce::FileBrowserComponent::warnAboutOverwriting;
+    // Chooser permissions. Opens in save mode, user chooses file, warning if file already exists.
+    const int saveChooserFlags = juce::FileBrowserComponent::saveMode |
+                                 juce::FileBrowserComponent::canSelectFiles |
+                                 juce::FileBrowserComponent::warnAboutOverwriting;
 
     // Open chooser, async open dialog and return without waiting
-    saveClipChooser->launchAsync(
-        saveChooserFlags, [this](const juce::FileChooser& fileChooser)
+    saveClipChooser->launchAsync(saveChooserFlags, [this](const juce::FileChooser& fileChooser) {
+        const auto destination = fileChooser.getResult();
+
+        // An empty result means the user cancelled.
+        if (destination == juce::File{}) // Retrieve user chosen file path
         {
-            const auto destination = fileChooser.getResult();
+            return;
+        }
 
-            // An empty result means the user cancelled.
-            if (destination == juce::File{})   // Retrieve user chosen file path
-            {
-                return;
-            }
+        const auto result = audioRecorder.saveToWav(destination); // writes WAV file, returns result
 
-            const auto result = audioRecorder.saveToWav(destination);   // writes WAV file, returns result
-
-            // Alerts, TO UPDATE pending app design choice
-            if (result.failed())
-            {
-                juce::AlertWindow::showMessageBoxAsync(
-                    juce::MessageBoxIconType::WarningIcon,
-                    "Save failed",
-                    result.getErrorMessage());
-            }
-            else
-            {
-                juce::AlertWindow::showMessageBoxAsync(
-                    juce::MessageBoxIconType::InfoIcon,
-                    "Clip saved",
-                    destination.getFullPathName());
-            }
-        });
+        // Alerts, TO UPDATE pending app design choice
+        if (result.failed()) {
+            juce::AlertWindow::showMessageBoxAsync(juce::MessageBoxIconType::WarningIcon,
+                                                   "Save failed", result.getErrorMessage());
+        } else {
+            juce::AlertWindow::showMessageBoxAsync(juce::MessageBoxIconType::InfoIcon, "Clip saved",
+                                                   destination.getFullPathName());
+        }
+    });
 }
