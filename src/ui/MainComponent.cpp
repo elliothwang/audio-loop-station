@@ -17,6 +17,7 @@ MainComponent::MainComponent() : audioState(Stopped) {
     addAndMakeVisible(saveLoopButton);
     addAndMakeVisible(loadLoopButton);
     addAndMakeVisible(loadWavButton);
+    addAndMakeVisible(saveClipButton);
 
     addAndMakeVisible(track1);
     addAndMakeVisible(track2);
@@ -61,6 +62,11 @@ MainComponent::MainComponent() : audioState(Stopped) {
 
         options.launchAsync();
     };
+
+    saveClipButton.onClick = [this]() {
+        saveClipButtonClicked();
+    };
+
 
     setSize(1200, 650);
 
@@ -177,6 +183,9 @@ void MainComponent::resized() {
 
     loadWavButton.setBounds(buttonRow.removeFromLeft(140));
 
+    buttonRow.removeFromLeft(10);
+    saveClipButton.setBounds(buttonRow.removeFromLeft(140));
+
     area.removeFromTop(20);
 
     // Position progress row containing progress bar and track progress time display.
@@ -192,4 +201,63 @@ void MainComponent::resized() {
     track2.setBounds(area.removeFromTop(70));
     track3.setBounds(area.removeFromTop(70));
     track4.setBounds(area.removeFromTop(70));
+}
+
+void MainComponent::saveClipButtonClicked()
+{
+    // Check if recording finished
+    if (audioRecorder.getState() != AudioRecorder::RecordingState::Ready)
+    {
+        // Alert warning if saving before ready. TODO: update pending application design choices.
+        juce::AlertWindow::showMessageBoxAsync(
+            juce::MessageBoxIconType::WarningIcon,
+            "Save Clip",
+            "Record a clip and finish recording before saving.");
+        return;
+    }
+
+    // Create file chooser, suggested location, .wav filetype filter
+    saveClipChooser = std::make_unique<juce::FileChooser>(
+        "Save recorded clip",
+        juce::File::getSpecialLocation(
+            juce::File::userDocumentsDirectory)
+            .getChildFile("recording.wav"),
+        "*.wav");
+
+        // Chooser permissions. Opens in save mode, user chooses file, warning if file already exists.
+        const int saveChooserFlags =
+            juce::FileBrowserComponent::saveMode |
+            juce::FileBrowserComponent::canSelectFiles |
+            juce::FileBrowserComponent::warnAboutOverwriting;
+
+    // Open chooser, async open dialog and return without waiting
+    saveClipChooser->launchAsync(
+        saveChooserFlags, [this](const juce::FileChooser& fileChooser)
+        {
+            const auto destination = fileChooser.getResult();
+
+            // An empty result means the user cancelled.
+            if (destination == juce::File{})   // Retrieve user chosen file path
+            {
+                return;
+            }
+
+            const auto result = audioRecorder.saveToWav(destination);   // writes WAV file, returns result
+
+            // Alerts, TO UPDATE pending app design choice
+            if (result.failed())
+            {
+                juce::AlertWindow::showMessageBoxAsync(
+                    juce::MessageBoxIconType::WarningIcon,
+                    "Save failed",
+                    result.getErrorMessage());
+            }
+            else
+            {
+                juce::AlertWindow::showMessageBoxAsync(
+                    juce::MessageBoxIconType::InfoIcon,
+                    "Clip saved",
+                    destination.getFullPathName());
+            }
+        });
 }

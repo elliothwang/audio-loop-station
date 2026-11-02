@@ -31,6 +31,7 @@ class MainComponent : public juce::AudioAppComponent,
     juce::TextButton saveLoopButton{"Save Loop"};
     juce::TextButton loadLoopButton{"Load Loop"};
     juce::TextButton loadWavButton{"Select .wav"}; // single wav until full loop implementation
+    juce::TextButton saveClipButton{"Save Clip"};
     void timerCallback() override;
 
     // progress bar declarations
@@ -55,12 +56,14 @@ class MainComponent : public juce::AudioAppComponent,
     std::unique_ptr<juce::AudioFormatReaderSource> readerSource; // reads audio
     juce::AudioTransportSource transportSource;                  // controls playback
     TransportState audioState;                  // represents state of transportSource
-    std::unique_ptr<juce::FileChooser> chooser; // object that chooses .wav file
+    std::unique_ptr<juce::FileChooser> chooser;   // object that chooses .wav file to play
+    std::unique_ptr<juce::FileChooser> saveClipChooser; // object to choose where to save a recording
 
     void changeState(TransportState newState);
     void playButtonClicked();
     void stopButtonClicked();
     void loadWavButtonClicked();
+    void saveClipButtonClicked();
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MainComponent)
 };
