@@ -2,7 +2,7 @@
 
 #include "AudioRecorder.h"
 #include "LoopStationLookAndFeel.h"
-#include "TrackRowComponent.h"
+#include "TrackLane.h"
 #include <juce_audio_utils/juce_audio_utils.h>
 #include <juce_gui_basics/juce_gui_basics.h>
 
@@ -43,10 +43,10 @@ class MainComponent : public juce::AudioAppComponent,
     juce::ProgressBar loopProgressBar{loopProgress};
     juce::Label loopTimeLabel;
 
-    TrackRowComponent track1{1};
-    TrackRowComponent track2{2};
-    TrackRowComponent track3{3};
-    TrackRowComponent track4{4};
+    TrackLane track1{1};
+    TrackLane track2{2};
+    TrackLane track3{3};
+    TrackLane track4{4};
 
     // ----- Audio, needs declared here -----
     AudioRecorder audioRecorder;

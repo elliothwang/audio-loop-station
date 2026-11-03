@@ -3,8 +3,12 @@ add_library(als_ui STATIC
     LoopStationLookAndFeel.h
     MainComponent.cpp
     MainComponent.h
-    TrackRowComponent.cpp
-    TrackRowComponent.h
+    IconButton.cpp
+    IconButton.h
+    LevelMeter.cpp
+    LevelMeter.h
+    TrackLane.cpp
+    TrackLane.h
     SaveLoopComponent.cpp
     SaveLoopComponent.h
     LoadLoopComponent.cpp

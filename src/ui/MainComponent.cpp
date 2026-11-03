@@ -197,10 +197,10 @@ void MainComponent::resized() {
     area.removeFromTop(10);
 
     // Position track rows
-    track1.setBounds(area.removeFromTop(70));
-    track2.setBounds(area.removeFromTop(70));
-    track3.setBounds(area.removeFromTop(70));
-    track4.setBounds(area.removeFromTop(70));
+    track1.setBounds(area.removeFromTop(118));
+    track2.setBounds(area.removeFromTop(118));
+    track3.setBounds(area.removeFromTop(118));
+    track4.setBounds(area.removeFromTop(118));
 }
 
 void MainComponent::saveClipButtonClicked() {
