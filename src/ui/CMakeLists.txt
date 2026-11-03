@@ -9,6 +9,8 @@ add_library(als_ui STATIC
     LevelMeter.h
     TrackLane.cpp
     TrackLane.h
+    TransportBar.cpp
+    TransportBar.h
     SaveLoopComponent.cpp
     SaveLoopComponent.h
     LoadLoopComponent.cpp

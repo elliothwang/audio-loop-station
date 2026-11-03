@@ -7,18 +7,7 @@ MainComponent::MainComponent() : audioState(Stopped) {
     // The default look and feel, rather than this component's, so dialogs and tooltips match.
     juce::LookAndFeel::setDefaultLookAndFeel(&lookAndFeel);
 
-    titleLabel.setText("Audio Loop Station - UI ready", juce::dontSendNotification);
-
-    titleLabel.setJustificationType(juce::Justification::centred);
-
-    titleLabel.setColour(juce::Label::textColourId, juce::Colours::white);
-
-    addAndMakeVisible(titleLabel);
-    addAndMakeVisible(recordButton);
-    addAndMakeVisible(playButton);
-    addAndMakeVisible(stopButton);
-    addAndMakeVisible(saveLoopButton);
-    addAndMakeVisible(loadLoopButton);
+    addAndMakeVisible(transportBar);
     addAndMakeVisible(loadWavButton);
     addAndMakeVisible(saveClipButton);
 
@@ -103,10 +92,8 @@ MainComponent::MainComponent() : audioState(Stopped) {
 
     // Audio button 'clicked' functions defined in src/audio/MainComponentAudio.cpp
     playButton.onClick = [this] { playButtonClicked(); };
-    playButton.setColour(juce::TextButton::buttonColourId, juce::Colours::green);
     playButton.setEnabled(false); // is enabled once user selects .wav
     stopButton.onClick = [this] { stopButtonClicked(); };
-    stopButton.setColour(juce::TextButton::buttonColourId, juce::Colours::red);
     stopButton.setEnabled(false);
     loadWavButton.onClick = [this] { loadWavButtonClicked(); };
 
@@ -121,8 +108,8 @@ MainComponent::~MainComponent() {
 };
 
 void MainComponent::timerCallback() {
-    switch (audioRecorder
-                .getState()) // Get snapshot or recorder's current state. Set buttons appropriately.
+    const auto recorderState = audioRecorder.getState();
+    switch (recorderState) // Get snapshot or recorder's current state. Set buttons appropriately.
     {
     case AudioRecorder::RecordingState::Idle:
     case AudioRecorder::RecordingState::Ready:
@@ -149,6 +136,14 @@ void MainComponent::timerCallback() {
         recordButton.setEnabled(false);
         break;
     }
+
+    // The record icon has no text, so its state shows in the tooltip and as a pulsing fill.
+    recordButton.setTooltip(recordButton.getButtonText());
+    recordButton.setToggleState(recorderState == AudioRecorder::RecordingState::Recording,
+                                juce::dontSendNotification);
+    if (recordButton.getToggleState()) {
+        recordButton.repaint(); // keeps the pulse moving
+    }
 }
 
 void MainComponent::paint(juce::Graphics& graphics) {
@@ -158,28 +153,12 @@ void MainComponent::paint(juce::Graphics& graphics) {
 
 // Called initially and when main components size changed.
 void MainComponent::resized() {
-    auto area = getLocalBounds().reduced(20); // 20px margin on sides
-
-    // position label
-    titleLabel.setBounds(area.removeFromTop(60)); // 60px title strip
+    auto bounds = getLocalBounds();
+    transportBar.setBounds(bounds.removeFromTop(76));
+    auto area = bounds.reduced(20); // 20px margin on sides
 
     // position buttons
     auto buttonRow = area.removeFromTop(40); // 40 px button strip
-
-    recordButton.setBounds(buttonRow.removeFromLeft(140));
-    buttonRow.removeFromLeft(10);
-
-    playButton.setBounds(buttonRow.removeFromLeft(140));
-    buttonRow.removeFromLeft(10);
-
-    stopButton.setBounds(buttonRow.removeFromLeft(140));
-    buttonRow.removeFromLeft(10);
-
-    saveLoopButton.setBounds(buttonRow.removeFromLeft(140));
-    buttonRow.removeFromLeft(10);
-
-    loadLoopButton.setBounds(buttonRow.removeFromLeft(140));
-    buttonRow.removeFromLeft(10);
 
     loadWavButton.setBounds(buttonRow.removeFromLeft(140));
 

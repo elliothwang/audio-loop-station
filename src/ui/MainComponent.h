@@ -3,6 +3,7 @@
 #include "AudioRecorder.h"
 #include "LoopStationLookAndFeel.h"
 #include "TrackLane.h"
+#include "TransportBar.h"
 #include <juce_audio_utils/juce_audio_utils.h>
 #include <juce_gui_basics/juce_gui_basics.h>
 
@@ -28,12 +29,18 @@ class MainComponent : public juce::AudioAppComponent,
     // Declared first so it outlives every component that draws with it.
     LoopStationLookAndFeel lookAndFeel;
 
-    juce::Label titleLabel; // text label for component
-    juce::TextButton recordButton{"Record"};
-    juce::TextButton playButton{"Play"};
-    juce::TextButton stopButton{"Stop"};
-    juce::TextButton saveLoopButton{"Save Loop"};
-    juce::TextButton loadLoopButton{"Load Loop"};
+    // Shows the icon buttons' tooltips, which stand in for the text they no longer have.
+    juce::TooltipWindow tooltipWindow{this};
+
+    TransportBar transportBar;
+
+    // The transport bar owns these buttons. The references keep the names the audio code uses.
+    juce::Button& recordButton = transportBar.recordButton();
+    juce::Button& playButton = transportBar.playButton();
+    juce::Button& stopButton = transportBar.stopButton();
+    juce::Button& saveLoopButton = transportBar.saveLoopButton();
+    juce::Button& loadLoopButton = transportBar.loadLoopButton();
+
     juce::TextButton loadWavButton{"Select .wav"}; // single wav until full loop implementation
     juce::TextButton saveClipButton{"Save Clip"};
     void timerCallback() override;
