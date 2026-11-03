@@ -1,3 +1,4 @@
+#include "core/ControllerSnapshot.h"
 #include "core/LoopController.h"
 
 #include <catch2/catch_test_macros.hpp>
@@ -250,3 +251,34 @@ TEST_CASE("nothing is audible while stopped", "[loop_controller]") {
     REQUIRE_FALSE(controller.audible(0, 400));
 }
 
+TEST_CASE("snapshot copies the controller's state", "[loop_controller]") {
+    LoopController controller = makePlayingLoop();
+    REQUIRE(controller.handle(Command::Record, 400, 0) == Result::Accepted);
+    als::ControllerSnapshot snapshot;
+    snapshot.publish(controller, 450);
+    REQUIRE(snapshot.transport() == Transport::Playing);
+    REQUIRE(snapshot.track(0) == TrackState::Playing);
+    REQUIRE(snapshot.track(1) == TrackState::Recording);
+    REQUIRE(snapshot.track(2) == TrackState::Empty);
+    REQUIRE(snapshot.now() == 450);
+    REQUIRE(snapshot.loopLength() == 200);
+    REQUIRE(snapshot.position() == 150);
+}
+
+TEST_CASE("snapshot position counts the first take as it records", "[loop_controller]") {
+    LoopController controller = makeController();
+    REQUIRE(controller.handle(Command::Record, 100, 0) == Result::Accepted);
+    als::ControllerSnapshot snapshot;
+    snapshot.publish(controller, 175);
+    REQUIRE(snapshot.loopLength() == 0);
+    REQUIRE(snapshot.position() == 75);
+}
+
+TEST_CASE("each published result bumps the result count", "[loop_controller]") {
+    als::ControllerSnapshot snapshot;
+    REQUIRE(snapshot.resultCount() == 0);
+    snapshot.publishResult(Result::TracksFull);
+    snapshot.publishResult(Result::TracksFull);
+    REQUIRE(snapshot.lastResult() == Result::TracksFull);
+    REQUIRE(snapshot.resultCount() == 2);
+}

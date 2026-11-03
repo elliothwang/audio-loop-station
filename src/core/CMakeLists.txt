@@ -1,5 +1,7 @@
 # Sample clock, loop timing, track data, and loop controller. Plain C++, no framework headers.
 add_library(als_core STATIC
+    ControllerSnapshot.cpp
+    ControllerSnapshot.h
     LoopController.cpp
     LoopController.h
     LoopTiming.cpp
