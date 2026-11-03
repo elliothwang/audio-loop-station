@@ -104,6 +104,10 @@ MainComponent::MainComponent() : audioState(Stopped) {
 
     // Requests 20 UI updates/s
     startTimerHz(20);
+
+    // Children were built before the look and feel was installed, and some copy its colours when
+    // they're created, so tell them all again now.
+    sendLookAndFeelChange();
 }
 
 MainComponent::~MainComponent() {

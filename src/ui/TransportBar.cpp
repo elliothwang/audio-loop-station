@@ -3,7 +3,7 @@
 #include "LoopStationLookAndFeel.h"
 
 #include <algorithm>
-#include <cmath>
+#include <initializer_list>
 
 namespace {
 
@@ -11,9 +11,10 @@ constexpr int kTransportButtonSize = 48; // [px]
 
 // Formats seconds as minutes, then seconds to one decimal place.
 juce::String formatTime(double seconds) {
-    const double clamped = std::max(0.0, seconds);
-    const int minutes = static_cast<int>(clamped / 60.0);
-    const double remainder = clamped - minutes * 60.0;
+    // Round to tenths before splitting off minutes, so 59.96 reads as 1 minute, not 0 and 60.0.
+    const int tenths = juce::roundToInt(std::max(0.0, seconds) * 10.0);
+    const int minutes = tenths / 600;
+    const double remainder = (tenths % 600) / 10.0;
     return juce::String(minutes) + ":" + juce::String(remainder, 1).paddedLeft('0', 4);
 }
 
