@@ -11,17 +11,12 @@ MainComponent::MainComponent() : audioState(Stopped) {
     addAndMakeVisible(loadWavButton);
     addAndMakeVisible(saveClipButton);
 
+    addAndMakeVisible(timelineRuler);
     addAndMakeVisible(track1);
     addAndMakeVisible(track2);
     addAndMakeVisible(track3);
     addAndMakeVisible(track4);
-
-    loopProgressBar.setPercentageDisplay(false);
-    addAndMakeVisible(loopProgressBar);
-
-    loopTimeLabel.setText("0:00", juce::dontSendNotification); // placeholder track time value
-    loopTimeLabel.setJustificationType(juce::Justification::centredRight);
-    addAndMakeVisible(loopTimeLabel);
+    addAndMakeVisible(playhead);
 
     // Save Loop Dialog box handler
     saveLoopButton.onClick = [this]() {
@@ -144,6 +139,17 @@ void MainComponent::timerCallback() {
     if (recordButton.getToggleState()) {
         recordButton.repaint(); // keeps the pulse moving
     }
+
+    updateTimeline();
+}
+
+void MainComponent::updateTimeline() {
+    const bool loaded = readerSource != nullptr;
+    const double length = loaded ? transportSource.getLengthInSeconds() : 0.0;
+    const double position = loaded ? transportSource.getCurrentPosition() : 0.0;
+    transportBar.setTime(position, length);
+    timelineRuler.setLength(length);
+    playhead.setFraction(length > 0.0 ? position / length : -1.0);
 }
 
 void MainComponent::paint(juce::Graphics& graphics) {
@@ -165,21 +171,15 @@ void MainComponent::resized() {
     buttonRow.removeFromLeft(10);
     saveClipButton.setBounds(buttonRow.removeFromLeft(140));
 
-    area.removeFromTop(20);
-
-    // Position progress row containing progress bar and track progress time display.
-    auto progressRow = area.removeFromTop(25);
-    loopTimeLabel.setBounds(progressRow.removeFromRight(65));
-    progressRow.removeFromRight(10);
-    loopProgressBar.setBounds(progressRow);
-
     area.removeFromTop(10);
+    timelineRuler.setBounds(area.removeFromTop(28));
 
     // Position track rows
     track1.setBounds(area.removeFromTop(118));
     track2.setBounds(area.removeFromTop(118));
     track3.setBounds(area.removeFromTop(118));
     track4.setBounds(area.removeFromTop(118));
+    playhead.setBounds(timelineRuler.getBounds().getUnion(track4.getBounds()));
 }
 
 void MainComponent::saveClipButtonClicked() {

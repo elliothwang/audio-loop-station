@@ -7,6 +7,8 @@ add_library(als_ui STATIC
     IconButton.h
     LevelMeter.cpp
     LevelMeter.h
+    TimelineRuler.cpp
+    TimelineRuler.h
     TrackLane.cpp
     TrackLane.h
     TransportBar.cpp

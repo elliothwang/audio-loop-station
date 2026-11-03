@@ -2,6 +2,7 @@
 
 #include "AudioRecorder.h"
 #include "LoopStationLookAndFeel.h"
+#include "TimelineRuler.h"
 #include "TrackLane.h"
 #include "TransportBar.h"
 #include <juce_audio_utils/juce_audio_utils.h>
@@ -45,15 +46,15 @@ class MainComponent : public juce::AudioAppComponent,
     juce::TextButton saveClipButton{"Save Clip"};
     void timerCallback() override;
 
-    // progress bar declarations
-    double loopProgress = 0.60; // placeholder value for progress bar
-    juce::ProgressBar loopProgressBar{loopProgress};
-    juce::Label loopTimeLabel;
+    // Feeds the time readout, ruler, and playhead from the selected .wav until loops play.
+    void updateTimeline();
 
+    TimelineRuler timelineRuler;
     TrackLane track1{1};
     TrackLane track2{2};
     TrackLane track3{3};
     TrackLane track4{4};
+    Playhead playhead; // after the lanes, so it draws over them
 
     // ----- Audio, needs declared here -----
     AudioRecorder audioRecorder;
