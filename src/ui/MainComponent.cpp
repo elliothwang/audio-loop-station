@@ -2,13 +2,23 @@
 #include "LoadLoopComponent.h"
 #include "SaveLoopComponent.h"
 
+namespace {
+
+constexpr int kHeaderHeight = 76; // [px]
+constexpr int kRulerHeight = 28;  // [px]
+constexpr int kLaneHeight = 118;  // [px]
+constexpr int kFooterHeight = 36; // [px]
+
+} // namespace
+
 // MainComponent constructor
 MainComponent::MainComponent() : audioState(Stopped) {
     // The default look and feel, rather than this component's, so dialogs and tooltips match.
     juce::LookAndFeel::setDefaultLookAndFeel(&lookAndFeel);
 
     addAndMakeVisible(transportBar);
-    addAndMakeVisible(loadWavButton);
+    addAndMakeVisible(deviceFooter);
+    addAndMakeVisible(loadWavButton); // after the footer, so the buttons draw on top of it
     addAndMakeVisible(saveClipButton);
 
     addAndMakeVisible(timelineRuler);
@@ -52,7 +62,7 @@ MainComponent::MainComponent() : audioState(Stopped) {
 
     saveClipButton.onClick = [this]() { saveClipButtonClicked(); };
 
-    setSize(1200, 650);
+    setSize(1280, kHeaderHeight + kRulerHeight + 4 * kLaneHeight + kFooterHeight);
 
     // ----- Audio work required here -----
     setAudioChannels(1, 2); // 1 input for recording, 2 output channels for playback
@@ -159,26 +169,21 @@ void MainComponent::paint(juce::Graphics& graphics) {
 
 // Called initially and when main components size changed.
 void MainComponent::resized() {
-    auto bounds = getLocalBounds();
-    transportBar.setBounds(bounds.removeFromTop(76));
-    auto area = bounds.reduced(20); // 20px margin on sides
+    auto area = getLocalBounds();
+    transportBar.setBounds(area.removeFromTop(kHeaderHeight));
 
-    // position buttons
-    auto buttonRow = area.removeFromTop(40); // 40 px button strip
+    auto footer = area.removeFromBottom(kFooterHeight);
+    deviceFooter.setBounds(footer);
+    // The temporary .wav buttons sit at the footer's right end until loops replace them.
+    auto temporaryButtons = footer.reduced(12, 5);
+    saveClipButton.setBounds(temporaryButtons.removeFromRight(100));
+    temporaryButtons.removeFromRight(8);
+    loadWavButton.setBounds(temporaryButtons.removeFromRight(100));
 
-    loadWavButton.setBounds(buttonRow.removeFromLeft(140));
-
-    buttonRow.removeFromLeft(10);
-    saveClipButton.setBounds(buttonRow.removeFromLeft(140));
-
-    area.removeFromTop(10);
-    timelineRuler.setBounds(area.removeFromTop(28));
-
-    // Position track rows
-    track1.setBounds(area.removeFromTop(118));
-    track2.setBounds(area.removeFromTop(118));
-    track3.setBounds(area.removeFromTop(118));
-    track4.setBounds(area.removeFromTop(118));
+    timelineRuler.setBounds(area.removeFromTop(kRulerHeight));
+    for (TrackLane* lane : {&track1, &track2, &track3, &track4}) {
+        lane->setBounds(area.removeFromTop(kLaneHeight));
+    }
     playhead.setBounds(timelineRuler.getBounds().getUnion(track4.getBounds()));
 }
 

@@ -3,6 +3,8 @@ add_library(als_ui STATIC
     LoopStationLookAndFeel.h
     MainComponent.cpp
     MainComponent.h
+    DeviceFooter.cpp
+    DeviceFooter.h
     IconButton.cpp
     IconButton.h
     LevelMeter.cpp

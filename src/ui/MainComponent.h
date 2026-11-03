@@ -1,6 +1,7 @@
 #pragma once
 
 #include "AudioRecorder.h"
+#include "DeviceFooter.h"
 #include "LoopStationLookAndFeel.h"
 #include "TimelineRuler.h"
 #include "TrackLane.h"
@@ -55,6 +56,7 @@ class MainComponent : public juce::AudioAppComponent,
     TrackLane track3{3};
     TrackLane track4{4};
     Playhead playhead; // after the lanes, so it draws over them
+    DeviceFooter deviceFooter{deviceManager};
 
     // ----- Audio, needs declared here -----
     AudioRecorder audioRecorder;
