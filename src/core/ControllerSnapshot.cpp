@@ -5,6 +5,7 @@
 namespace als {
 
 void ControllerSnapshot::publish(const LoopController& controller, std::int64_t now) noexcept {
+    // Relaxed, because each field is read on its own and a value one block stale is fine to show.
     transport_.store(controller.transport(), std::memory_order_relaxed);
     for (std::size_t i = 0; i < kTrackCount; ++i) {
         tracks_[i].store(controller.track(i), std::memory_order_relaxed);
@@ -17,7 +18,7 @@ void ControllerSnapshot::publish(const LoopController& controller, std::int64_t 
         length = loop->length;
         position = loopPosition(*loop, now);
     } else if (const auto start = controller.takeStart()) {
-        position = now - *start;
+        position = now - *start; // no loop yet, so show how long the first take has run
     }
     loopLength_.store(length, std::memory_order_relaxed);
     position_.store(position, std::memory_order_relaxed);
@@ -25,6 +26,8 @@ void ControllerSnapshot::publish(const LoopController& controller, std::int64_t 
 
 void ControllerSnapshot::publishResult(Result result) noexcept {
     lastResult_.store(result, std::memory_order_relaxed);
+    // Release pairs with the acquire in resultCount(), so seeing the new count means seeing its
+    // result.
     resultCount_.fetch_add(1, std::memory_order_release);
 }
 
@@ -54,6 +57,7 @@ Result ControllerSnapshot::lastResult() const noexcept {
 }
 
 std::uint32_t ControllerSnapshot::resultCount() const noexcept {
+    // Acquire, so the UI reads lastResult() only after its matching count.
     return resultCount_.load(std::memory_order_acquire);
 }
 

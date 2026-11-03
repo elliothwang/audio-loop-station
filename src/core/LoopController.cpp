@@ -24,6 +24,7 @@ Result LoopController::handle(Command command, std::int64_t now, std::size_t tra
         playing_ = true;
         return Result::Accepted;
     case Command::Stop:
+        // STOP during the first take keeps it, so a performer who stops by habit still has a loop.
         if (transport() == Transport::RecordingFirstTake) {
             return finishFirstTake(now, false);
         }
@@ -43,6 +44,8 @@ Result LoopController::handle(Command command, std::int64_t now, std::size_t tra
 }
 
 void LoopController::advance(std::int64_t now) noexcept {
+    // `now` is the end of a block and can overshoot the take's end, so the take ends at `end`,
+    // which keeps the first take's length exactly the buffer's capacity.
     const std::optional<std::int64_t> end = takeEnd();
     if (!end || now < *end) {
         return;
@@ -57,6 +60,8 @@ void LoopController::advance(std::int64_t now) noexcept {
 }
 
 Result LoopController::record(std::int64_t now) noexcept {
+    // Playing and Stopped both fall through to starting a later take, which differs only in
+    // whether playback has to restart first.
     switch (transport()) {
     case Transport::Empty:
         tracks_[0] = TrackState::Recording;
@@ -90,14 +95,17 @@ Result LoopController::record(std::int64_t now) noexcept {
 }
 
 Result LoopController::finishFirstTake(std::int64_t stop, bool play) noexcept {
+    // Clear the take first so both outcomes leave nothing recording.
     const std::optional<LoopTiming> loop = loopFromFirstTake(*takeStart_, stop, minimumTakeLength_);
     takeStart_.reset();
     if (!loop) {
+        // The first take is always track 0, since every track was empty when it started.
         tracks_[0] = TrackState::Empty;
         return Result::TakeTooShort;
     }
     loop_ = loop;
     tracks_[0] = TrackState::Playing;
+    // False when STOP ended the take, so the loop exists but waits for PLAY.
     playing_ = play;
     return Result::Accepted;
 }
@@ -109,6 +117,8 @@ Result LoopController::deleteTrack(std::size_t index) noexcept {
     if (tracks_[index] == TrackState::Empty) {
         return Result::Ignored;
     }
+    // A take is only its start time here, so clearing it cancels the take. The engine stops
+    // writing input because the track is no longer Recording.
     if (tracks_[index] == TrackState::Recording) {
         takeStart_.reset();
     }
@@ -157,6 +167,7 @@ std::optional<std::int64_t> LoopController::takeEnd() const noexcept {
     if (!takeStart_) {
         return std::nullopt;
     }
+    // The first take has no loop length yet, so its limit is the buffer's capacity.
     return *takeStart_ + (loop_ ? loop_->length : maximumTakeLength_);
 }
 
@@ -169,6 +180,8 @@ bool LoopController::audible(std::size_t index, std::int64_t time) const noexcep
     if (state == TrackState::Playing) {
         return transport() == Transport::Playing;
     }
+    // advance() only runs after a block, so a take that ends mid-block is still Recording.
+    // Treating it as audible from its end lets it repeat without a gap.
     const std::optional<std::int64_t> end = takeEnd();
     return state == TrackState::Recording && end && time >= *end;
 }

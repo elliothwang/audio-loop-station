@@ -8,7 +8,7 @@ namespace als {
 
 // A loop's place on the SampleClock timeline.
 struct LoopTiming {
-    std::int64_t origin = 0; // downbeat; moves to the restart time when playback restarts
+    std::int64_t origin = 0; // downbeat, moved to the restart time when playback restarts
     std::int64_t length = 0;
 };
 
