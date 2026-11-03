@@ -1,6 +1,7 @@
 #pragma once
 
 #include "AudioRecorder.h"
+#include "LoopStationLookAndFeel.h"
 #include "TrackRowComponent.h"
 #include <juce_audio_utils/juce_audio_utils.h>
 #include <juce_gui_basics/juce_gui_basics.h>
@@ -24,6 +25,9 @@ class MainComponent : public juce::AudioAppComponent,
     void changeListenerCallback(juce::ChangeBroadcaster* source) override;
 
   private:
+    // Declared first so it outlives every component that draws with it.
+    LoopStationLookAndFeel lookAndFeel;
+
     juce::Label titleLabel; // text label for component
     juce::TextButton recordButton{"Record"};
     juce::TextButton playButton{"Play"};

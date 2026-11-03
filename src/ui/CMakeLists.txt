@@ -1,4 +1,6 @@
 add_library(als_ui STATIC
+    LoopStationLookAndFeel.cpp
+    LoopStationLookAndFeel.h
     MainComponent.cpp
     MainComponent.h
     TrackRowComponent.cpp

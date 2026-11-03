@@ -4,6 +4,9 @@
 
 // MainComponent constructor
 MainComponent::MainComponent() : audioState(Stopped) {
+    // The default look and feel, rather than this component's, so dialogs and tooltips match.
+    juce::LookAndFeel::setDefaultLookAndFeel(&lookAndFeel);
+
     titleLabel.setText("Audio Loop Station - UI ready", juce::dontSendNotification);
 
     titleLabel.setJustificationType(juce::Justification::centred);
@@ -38,7 +41,7 @@ MainComponent::MainComponent() : audioState(Stopped) {
         options.content.setOwned(
             new SaveLoopComponent()); // Create dialog window's contents with SaveLoopComponent
         options.dialogTitle = "Save Loop";
-        options.dialogBackgroundColour = juce::Colour(0xff20242b);
+        options.dialogBackgroundColour = palette::header;
         options.componentToCentreAround = this; // Centre over main screen
         options.escapeKeyTriggersCloseButton = true;
         options.useNativeTitleBar = true; // Use Windows title bar and close button
@@ -54,7 +57,7 @@ MainComponent::MainComponent() : audioState(Stopped) {
 
         options.content.setOwned(new LoadLoopComponent());
         options.dialogTitle = "Load Loop";
-        options.dialogBackgroundColour = juce::Colour(0xff20242b);
+        options.dialogBackgroundColour = palette::header;
         options.componentToCentreAround = this;
         options.escapeKeyTriggersCloseButton = true;
         options.useNativeTitleBar = true;
@@ -114,6 +117,7 @@ MainComponent::MainComponent() : audioState(Stopped) {
 MainComponent::~MainComponent() {
     stopTimer();
     shutdownAudio();
+    juce::LookAndFeel::setDefaultLookAndFeel(nullptr);
 };
 
 void MainComponent::timerCallback() {
@@ -149,7 +153,7 @@ void MainComponent::timerCallback() {
 
 void MainComponent::paint(juce::Graphics& graphics) {
     // fill background
-    graphics.fillAll(juce::Colour(0xff20242b));
+    graphics.fillAll(palette::background);
 }
 
 // Called initially and when main components size changed.
