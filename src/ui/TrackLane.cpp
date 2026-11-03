@@ -5,11 +5,21 @@
 #include <juce_audio_basics/juce_audio_basics.h>
 
 #include <cmath>
+#include <initializer_list>
 
 namespace {
 
 constexpr int kSlipStepMs = 10;          // [ms] per button press
 constexpr float kWaveformHeight = 64.0f; // [px] of the empty waveform outline
+constexpr int kSmallButtonSize = 28;     // [px] square, for delete and the slip buttons
+constexpr int kRowGap = 8;               // [px] between the header's rows
+constexpr int kColumnGap = 14;           // [px] between the header's right-hand columns
+
+// Gives a short-labelled button a full name for screen readers and a matching tooltip.
+void nameButton(juce::Button& button, const juce::String& name) {
+    button.setTitle(name);
+    button.setTooltip(name);
+}
 
 // Styles a label as small grey caption text.
 void styleCaption(juce::Label& label, const juce::String& text) {
@@ -52,6 +62,12 @@ TrackLane::TrackLane(int trackNumber)
     muteButton.setColour(juce::TextButton::buttonOnColourId, palette::mute);
     reverseButton.setClickingTogglesState(true);
     reverseButton.setColour(juce::TextButton::buttonOnColourId, palette::reverse);
+
+    const juce::String track = "track " + juce::String(trackNumber);
+    nameButton(muteButton, "Mute " + track);
+    nameButton(reverseButton, "Reverse " + track);
+    nameButton(slipEarlierButton, "Slip " + track + " earlier");
+    nameButton(slipLaterButton, "Slip " + track + " later");
 
     // "-" moves the track earlier, "+" later.
     slipEarlierButton.onClick = [this]() { nudgeSlip(-kSlipStepMs); };
@@ -105,34 +121,34 @@ void TrackLane::resized() {
     auto header = getLocalBounds().withWidth(kHeaderWidth).reduced(16, 12);
 
     // The right side holds delete, the meter, and the pan knob, each a full-height column.
-    auto deleteColumn = header.removeFromRight(28);
-    deleteButton.setBounds(deleteColumn.removeFromBottom(28));
-    header.removeFromRight(8);
+    auto deleteColumn = header.removeFromRight(kSmallButtonSize);
+    deleteButton.setBounds(deleteColumn.removeFromBottom(kSmallButtonSize));
+    header.removeFromRight(kRowGap);
     meter.setBounds(header.removeFromRight(8));
-    header.removeFromRight(14);
+    header.removeFromRight(kColumnGap);
     auto knobColumn = header.removeFromRight(56);
     panLabel.setBounds(knobColumn.removeFromBottom(14));
     panSlider.setBounds(knobColumn.withSizeKeepingCentre(46, 46));
-    header.removeFromRight(14);
+    header.removeFromRight(kColumnGap);
 
     auto titleRow = header.removeFromTop(22);
     numberLabel.setBounds(titleRow.removeFromLeft(26));
     stateLabel.setBounds(titleRow.removeFromRight(64).withSizeKeepingCentre(64, 18));
     nameLabel.setBounds(titleRow);
-    header.removeFromTop(8);
+    header.removeFromTop(kRowGap);
 
     auto volumeRow = header.removeFromTop(24);
     volumeLabel.setBounds(volumeRow.removeFromLeft(30));
     volumeSlider.setBounds(volumeRow);
-    header.removeFromTop(8);
+    header.removeFromTop(kRowGap);
 
-    auto buttonRow = header.removeFromTop(28);
+    auto buttonRow = header.removeFromTop(kSmallButtonSize);
     muteButton.setBounds(buttonRow.removeFromLeft(34));
     buttonRow.removeFromLeft(6);
     reverseButton.setBounds(buttonRow.removeFromLeft(44));
     buttonRow.removeFromLeft(12);
-    slipEarlierButton.setBounds(buttonRow.removeFromLeft(28));
-    slipLaterButton.setBounds(buttonRow.removeFromRight(28));
+    slipEarlierButton.setBounds(buttonRow.removeFromLeft(kSmallButtonSize));
+    slipLaterButton.setBounds(buttonRow.removeFromRight(kSmallButtonSize));
     slipOffsetLabel.setBounds(buttonRow);
 }
 

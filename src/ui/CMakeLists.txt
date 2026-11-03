@@ -11,6 +11,8 @@ add_library(als_ui STATIC
     LevelMeter.h
     TimelineRuler.cpp
     TimelineRuler.h
+    Playhead.cpp
+    Playhead.h
     TrackLane.cpp
     TrackLane.h
     TransportBar.cpp

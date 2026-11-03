@@ -3,6 +3,7 @@
 #include "AudioRecorder.h"
 #include "DeviceFooter.h"
 #include "LoopStationLookAndFeel.h"
+#include "Playhead.h"
 #include "TimelineRuler.h"
 #include "TrackLane.h"
 #include "TransportBar.h"
