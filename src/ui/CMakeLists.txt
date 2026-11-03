@@ -22,6 +22,7 @@ target_link_libraries(als_ui
     PUBLIC
         als_core
         juce::juce_gui_basics
+        juce::juce_audio_utils
     PRIVATE
         als_warnings
 )
