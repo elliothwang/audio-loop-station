@@ -1,8 +1,17 @@
 #include "SaveLoopComponent.h"
 
 // Constructor, sets label and makes visible input controls, initial dialog sizing
-SaveLoopComponent::SaveLoopComponent() {
+SaveLoopComponent::SaveLoopComponent(std::function<void(const juce::String&)> onSave) {
     loopNameLabel.setText("Loop name", juce::dontSendNotification);
+
+    // Closing deletes this component and the callback with it, so the save runs first.
+    auto save = [this, onSave = std::move(onSave)]() {
+        onSave(loopNameEditor.getText());
+        close();
+    };
+    saveButton.onClick = save;
+    loopNameEditor.onReturnKey = save;
+    cancelButton.onClick = [this]() { close(); };
 
     addAndMakeVisible(loopNameLabel);
     addAndMakeVisible(loopNameEditor);
@@ -25,4 +34,11 @@ void SaveLoopComponent::resized() {
     saveButton.setBounds(buttonRow.removeFromRight(90));
     buttonRow.removeFromRight(10);
     cancelButton.setBounds(buttonRow.removeFromRight(90));
+}
+
+void SaveLoopComponent::close() {
+    // The dialog deletes itself, and this component with it, once it leaves the modal state.
+    if (auto* dialog = findParentComponentOfClass<juce::DialogWindow>()) {
+        dialog->exitModalState(0);
+    }
 }

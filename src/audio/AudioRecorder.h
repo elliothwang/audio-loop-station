@@ -2,6 +2,7 @@
 
 #include <atomic>
 #include <juce_audio_utils/juce_audio_utils.h>
+#include <vector>
 
 class AudioRecorder {
   public:
@@ -14,7 +15,10 @@ class AudioRecorder {
     bool requestStart();             // returned boolean will indicate if request accepted
     bool requestStop();
     void processInput(const float* inputSamples, int sampleCount);
-    juce::Result saveToWav(const juce::File& destination);
+
+    // Copies the finished clip and its sample rate out of the recorder. Fails if a take is still
+    // recording or nothing has been recorded.
+    [[nodiscard]] juce::Result copyRecording(std::vector<float>& samples, double& sampleRate);
 
     RecordingState getState() const noexcept;
 

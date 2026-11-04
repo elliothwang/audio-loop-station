@@ -18,8 +18,7 @@ MainComponent::MainComponent() : audioState(Stopped) {
 
     addAndMakeVisible(transportBar);
     addAndMakeVisible(deviceFooter);
-    addAndMakeVisible(loadWavButton); // after the footer, so the buttons draw on top of it
-    addAndMakeVisible(saveClipButton);
+    addAndMakeVisible(loadWavButton); // after the footer, so the button draws on top of it
 
     addAndMakeVisible(timelineRuler);
     addAndMakeVisible(track1);
@@ -32,8 +31,9 @@ MainComponent::MainComponent() : audioState(Stopped) {
     saveLoopButton.onClick = [this]() {
         juce::DialogWindow::LaunchOptions options;
 
+        // Create dialog window's contents with SaveLoopComponent
         options.content.setOwned(
-            new SaveLoopComponent()); // Create dialog window's contents with SaveLoopComponent
+            new SaveLoopComponent([this](const juce::String& name) { saveLoop(name); }));
         options.dialogTitle = "Save Loop";
         options.dialogBackgroundColour = palette::header;
         options.componentToCentreAround = this; // Centre over main screen
@@ -59,8 +59,6 @@ MainComponent::MainComponent() : audioState(Stopped) {
 
         options.launchAsync();
     };
-
-    saveClipButton.onClick = [this]() { saveClipButtonClicked(); };
 
     setSize(1280, kHeaderHeight + kRulerHeight + 4 * kLaneHeight + kFooterHeight);
 
@@ -178,11 +176,8 @@ void MainComponent::resized() {
 
     auto footer = area.removeFromBottom(kFooterHeight);
     deviceFooter.setBounds(footer);
-    // The temporary .wav buttons sit at the footer's right end until loops replace them.
-    auto temporaryButtons = footer.reduced(12, 5);
-    saveClipButton.setBounds(temporaryButtons.removeFromRight(100));
-    temporaryButtons.removeFromRight(8);
-    loadWavButton.setBounds(temporaryButtons.removeFromRight(100));
+    // The temporary .wav button sits at the footer's right end until loops replace it.
+    loadWavButton.setBounds(footer.reduced(12, 5).removeFromRight(100));
 
     timelineRuler.setBounds(area.removeFromTop(kRulerHeight));
     for (TrackLane* lane : {&track1, &track2, &track3, &track4}) {
@@ -191,46 +186,19 @@ void MainComponent::resized() {
     playhead.setBounds(timelineRuler.getBounds().getUnion(track4.getBounds()));
 }
 
-void MainComponent::saveClipButtonClicked() {
-    // Check if recording finished
-    if (audioRecorder.getState() != AudioRecorder::RecordingState::Ready) {
-        // Alert warning if saving before ready. TODO: update pending application design choices.
-        juce::AlertWindow::showMessageBoxAsync(juce::MessageBoxIconType::WarningIcon, "Save Clip",
-                                               "Record a clip and finish recording before saving.");
-        return;
+void MainComponent::saveLoop(const juce::String& name) {
+    als::SavedLoop loop;
+    juce::Result result = audioRecorder.copyRecording(loop.samples, loop.sampleRate);
+    const juce::File folder = als::loopFolder(als::defaultLoopsFolder(), name);
+    if (result.wasOk()) {
+        result = als::saveLoop(loop, folder);
     }
 
-    // Create file chooser, suggested location, .wav filetype filter
-    saveClipChooser = std::make_unique<juce::FileChooser>(
-        "Save recorded clip",
-        juce::File::getSpecialLocation(juce::File::userDocumentsDirectory)
-            .getChildFile("recording.wav"),
-        "*.wav");
-
-    // Chooser permissions. Opens in save mode, user chooses file, warning if file already exists.
-    const int saveChooserFlags = juce::FileBrowserComponent::saveMode |
-                                 juce::FileBrowserComponent::canSelectFiles |
-                                 juce::FileBrowserComponent::warnAboutOverwriting;
-
-    // Open chooser, async open dialog and return without waiting
-    saveClipChooser->launchAsync(saveChooserFlags, [this](const juce::FileChooser& fileChooser) {
-        const auto destination = fileChooser.getResult();
-
-        // An empty result means the user cancelled.
-        if (destination == juce::File{}) // Retrieve user chosen file path
-        {
-            return;
-        }
-
-        const auto result = audioRecorder.saveToWav(destination); // writes WAV file, returns result
-
-        // Alerts, TO UPDATE pending app design choice
-        if (result.failed()) {
-            juce::AlertWindow::showMessageBoxAsync(juce::MessageBoxIconType::WarningIcon,
-                                                   "Save failed", result.getErrorMessage());
-        } else {
-            juce::AlertWindow::showMessageBoxAsync(juce::MessageBoxIconType::InfoIcon, "Clip saved",
-                                                   destination.getFullPathName());
-        }
-    });
+    if (result.failed()) {
+        juce::AlertWindow::showMessageBoxAsync(juce::MessageBoxIconType::WarningIcon, "Save failed",
+                                               result.getErrorMessage());
+    } else {
+        juce::AlertWindow::showMessageBoxAsync(juce::MessageBoxIconType::InfoIcon, "Loop saved",
+                                               folder.getFullPathName());
+    }
 }

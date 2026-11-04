@@ -7,6 +7,7 @@
 #include "TimelineRuler.h"
 #include "TrackLane.h"
 #include "TransportBar.h"
+#include "storage/LoopFile.h"
 #include <juce_audio_utils/juce_audio_utils.h>
 #include <juce_gui_basics/juce_gui_basics.h>
 
@@ -45,11 +46,13 @@ class MainComponent : public juce::AudioAppComponent,
     juce::Button& loadLoopButton = transportBar.loadLoopButton();
 
     juce::TextButton loadWavButton{"Select .wav"}; // single wav until full loop implementation
-    juce::TextButton saveClipButton{"Save Clip"};
     void timerCallback() override;
 
     // Feeds the time readout, ruler, and playhead from the selected .wav until loops play.
     void updateTimeline();
+
+    // Saves the recorded clip as a loop called `name`, and reports how it went.
+    void saveLoop(const juce::String& name);
 
     TimelineRuler timelineRuler;
     TrackLane track1{1};
@@ -72,14 +75,11 @@ class MainComponent : public juce::AudioAppComponent,
     juce::AudioTransportSource transportSource;                  // controls playback
     TransportState audioState;                  // represents state of transportSource
     std::unique_ptr<juce::FileChooser> chooser; // object that chooses .wav file to play
-    std::unique_ptr<juce::FileChooser>
-        saveClipChooser; // object to choose where to save a recording
 
     void changeState(TransportState newState);
     void playButtonClicked();
     void stopButtonClicked();
     void loadWavButtonClicked();
-    void saveClipButtonClicked();
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MainComponent)
 };
