@@ -12,13 +12,12 @@ constexpr int kFooterHeight = 36; // [px]
 } // namespace
 
 // MainComponent constructor
-MainComponent::MainComponent() : audioState(Stopped) {
+MainComponent::MainComponent() {
     // The default look and feel, rather than this component's, so dialogs and tooltips match.
     juce::LookAndFeel::setDefaultLookAndFeel(&lookAndFeel);
 
     addAndMakeVisible(transportBar);
     addAndMakeVisible(deviceFooter);
-    addAndMakeVisible(loadWavButton); // after the footer, so the button draws on top of it
 
     addAndMakeVisible(timelineRuler);
     addAndMakeVisible(track1);
@@ -64,16 +63,15 @@ MainComponent::MainComponent() : audioState(Stopped) {
 
     // ----- Audio work required here -----
     setAudioChannels(1, 2); // 1 input for recording, 2 output channels for playback
-    formatManager.registerBasicFormats();
-    transportSource.addChangeListener(this);
 
     recordButton.onClick = [this]() {
         const auto currentState = audioRecorder.getState();
 
         switch (currentState) {
-        // If recorder state "Idle" or "Ready", request new recording
+        // If recorder state "Idle" or "Ready", stop playback and request new recording
         case AudioRecorder::RecordingState::Idle:
         case AudioRecorder::RecordingState::Ready:
+            loopPlayer.stop();
             audioRecorder.requestStart();
             break;
 
@@ -95,10 +93,9 @@ MainComponent::MainComponent() : audioState(Stopped) {
 
     // Audio button 'clicked' functions defined in src/audio/MainComponentAudio.cpp
     playButton.onClick = [this] { playButtonClicked(); };
-    playButton.setEnabled(false); // is enabled once user selects .wav
+    playButton.setEnabled(false); // is enabled once a clip is recorded
     stopButton.onClick = [this] { stopButtonClicked(); };
     stopButton.setEnabled(false);
-    loadWavButton.onClick = [this] { loadWavButtonClicked(); };
 
     // Requests 20 UI updates/s
     startTimerHz(20);
@@ -152,16 +149,26 @@ void MainComponent::timerCallback() {
         recordButton.repaint(); // keeps the pulse moving
     }
 
+    // Play needs a finished clip, and the player only reports a length once there is one.
+    const bool hasClip = loopPlayer.length() > 0;
+    const bool playing = loopPlayer.playing();
+    playButton.setEnabled(hasClip && !playing);
+    stopButton.setEnabled(playing);
+
     updateTimeline();
 }
 
 void MainComponent::updateTimeline() {
-    const bool loaded = readerSource != nullptr;
-    const double length = loaded ? transportSource.getLengthInSeconds() : 0.0;
-    const double position = loaded ? transportSource.getCurrentPosition() : 0.0;
+    juce::AudioIODevice* device = deviceManager.getCurrentAudioDevice();
+    const double sampleRate = device != nullptr ? device->getCurrentSampleRate() : 0.0;
+    if (sampleRate <= 0.0) {
+        return;
+    }
+    const double length = static_cast<double>(loopPlayer.length()) / sampleRate;
+    const double position = static_cast<double>(loopPlayer.position()) / sampleRate;
     transportBar.setTime(position, length);
     timelineRuler.setLength(length);
-    playhead.setFraction(length > 0.0 ? position / length : -1.0);
+    playhead.setFraction(loopPlayer.playing() && length > 0.0 ? position / length : -1.0);
 }
 
 void MainComponent::paint(juce::Graphics& graphics) {
@@ -174,10 +181,7 @@ void MainComponent::resized() {
     auto area = getLocalBounds();
     transportBar.setBounds(area.removeFromTop(kHeaderHeight));
 
-    auto footer = area.removeFromBottom(kFooterHeight);
-    deviceFooter.setBounds(footer);
-    // The temporary .wav button sits at the footer's right end until loops replace it.
-    loadWavButton.setBounds(footer.reduced(12, 5).removeFromRight(100));
+    deviceFooter.setBounds(area.removeFromBottom(kFooterHeight));
 
     timelineRuler.setBounds(area.removeFromTop(kRulerHeight));
     for (TrackLane* lane : {&track1, &track2, &track3, &track4}) {

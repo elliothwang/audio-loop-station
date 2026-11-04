@@ -5,6 +5,11 @@
 #include <limits>
 
 void AudioRecorder::prepare(double sampleRate) {
+    // A device restart at the same rate keeps the clip, so only reset when the rate changes.
+    if (sampleRate == recordingSampleRate && recordingBuffer.getNumSamples() > 0) {
+        return;
+    }
+
     recordingSampleRate = 0.0;
     recordedSampleCount = 0;
     state.store(RecordingState::Idle);
@@ -128,6 +133,17 @@ void AudioRecorder::processInput(
 // Return current snapshot of recorder's state for UI to read
 AudioRecorder::RecordingState AudioRecorder::getState() const noexcept {
     return state.load();
+}
+
+const float* AudioRecorder::clip() const noexcept {
+    return recordingBuffer.getNumSamples() > 0 ? recordingBuffer.getReadPointer(0) : nullptr;
+}
+
+std::size_t AudioRecorder::clipLength() const noexcept {
+    // Saving only reads the clip, so it can still play while it's copied.
+    const auto current = state.load();
+    const bool finished = current == RecordingState::Ready || current == RecordingState::Saving;
+    return finished ? static_cast<std::size_t>(recordedSampleCount) : 0;
 }
 
 juce::Result AudioRecorder::copyRecording(std::vector<float>& samples, double& sampleRate) {
