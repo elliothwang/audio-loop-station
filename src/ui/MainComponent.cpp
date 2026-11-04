@@ -155,6 +155,13 @@ void MainComponent::timerCallback() {
     playButton.setEnabled(hasClip && !playing);
     stopButton.setEnabled(playing);
 
+    // The clip is track 1 until more tracks can record. Playing is the state for a track that
+    // holds audio, so it shows whether or not playback is running.
+    const bool recording = recorderState == AudioRecorder::RecordingState::Recording;
+    track1.setState(recording ? als::TrackState::Recording
+                    : hasClip ? als::TrackState::Playing
+                              : als::TrackState::Empty);
+
     updateTimeline();
 }
 
