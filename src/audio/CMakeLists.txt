@@ -1,5 +1,8 @@
 add_library(als_audio STATIC
-    MainComponentAudio.cpp)
+    MainComponentAudio.cpp
+    AudioRecorder.cpp
+    AudioRecorder.h
+    )
 
 target_include_directories(als_audio PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}

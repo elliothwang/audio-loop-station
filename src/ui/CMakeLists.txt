@@ -21,6 +21,7 @@ target_compile_definitions(als_ui PUBLIC
 target_link_libraries(als_ui
     PUBLIC
         als_core
+        als_audio
         juce::juce_gui_basics
         juce::juce_audio_utils
     PRIVATE
