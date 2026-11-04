@@ -7,8 +7,9 @@ namespace als {
 
 float edgeGain(std::size_t index, std::size_t length, std::size_t fadeLength) noexcept {
     assert(index < length && "index past the end of the loop");
+    // Fading over at most half the loop keeps the two fades from overlapping.
     const std::size_t fade = std::min(fadeLength, length / 2);
-    const std::size_t fromEdge = std::min(index, length - 1 - index);
+    const std::size_t fromEdge = std::min(index, length - 1 - index); // distance to the nearer end
     if (fromEdge >= fade) {
         return 1.0f;
     }

@@ -123,7 +123,8 @@ juce::Result saveLoop(const SavedLoop& loop, const juce::File& folder) {
         result = writeTrack(loop, folder.getChildFile(kTrackFileName));
     }
     if (result.failed()) {
-        static_cast<void>(folder.deleteRecursively()); // best effort, the error matters more
+        // A half-written folder would fail to load later, so any failure removes it.
+        static_cast<void>(folder.deleteRecursively());
     }
     return result;
 }

@@ -34,6 +34,7 @@ void LoopPlayer::process(const float* loop, std::size_t length, float* left, flo
     if (restart_.exchange(false)) {
         position_ = 0;
     }
+    // Stopped, so the UI shows the top until the next Play.
     if (!playing_.load() || loop == nullptr || length == 0 || left == nullptr) {
         position_ = 0;
         publishedPosition_.store(0, std::memory_order_relaxed);

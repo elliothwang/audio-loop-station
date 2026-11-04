@@ -16,7 +16,7 @@ struct SavedLoop {
     std::vector<float> samples;
 };
 
-// Returns Documents/Audio Loop Station/Loops, where loops are saved.
+// Returns the user's Documents/Audio Loop Station/Loops, where loops are saved locally.
 [[nodiscard]] juce::File defaultLoopsFolder();
 
 // Returns the folder for a loop called `name` inside `root`, with characters the file system

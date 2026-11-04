@@ -1,5 +1,7 @@
 #pragma once
 
+// The Save dialog's contents. It asks for a loop name and hands it to MainComponent to save.
+
 #include <juce_gui_basics/juce_gui_basics.h>
 
 #include <functional>

@@ -12,8 +12,8 @@ namespace als {
 // Plays from the top on every start. Stopping returns to the top rather than pausing.
 class LoopPlayer {
   public:
-    static constexpr int kFadeMilliseconds =
-        5; // at each end of the loop, so the wrap doesn't click
+    // [ms] at each end of the loop, so the wrap doesn't click
+    static constexpr int kFadeMilliseconds = 5;
 
     // Sets the fade length for `sampleRate`. Called while the callback is stopped.
     void prepare(double sampleRate) noexcept;
