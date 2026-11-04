@@ -35,6 +35,11 @@ class AudioLoopStationApplication : public juce::JUCEApplication {
             setUsingNativeTitleBar(true);
             setContentOwned(new MainComponent(), true); // Put UI inside window.
             setResizable(true, false);
+            // Narrower than this squeezes the waveforms to nothing. The content's own height is
+            // the minimum, so the four lanes always fit.
+            constexpr int kMinimumWidth = 980; // [px]
+            constexpr int kMaximumSize = 8192; // [px]
+            setResizeLimits(kMinimumWidth, getHeight(), kMaximumSize, kMaximumSize);
             centreWithSize(getWidth(), getHeight());
             setVisible(true);
         }

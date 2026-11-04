@@ -1,8 +1,22 @@
 add_library(als_ui STATIC
+    LoopStationLookAndFeel.cpp
+    LoopStationLookAndFeel.h
     MainComponent.cpp
     MainComponent.h
-    TrackRowComponent.cpp
-    TrackRowComponent.h
+    DeviceFooter.cpp
+    DeviceFooter.h
+    IconButton.cpp
+    IconButton.h
+    LevelMeter.cpp
+    LevelMeter.h
+    TimelineRuler.cpp
+    TimelineRuler.h
+    Playhead.cpp
+    Playhead.h
+    TrackLane.cpp
+    TrackLane.h
+    TransportBar.cpp
+    TransportBar.h
     SaveLoopComponent.cpp
     SaveLoopComponent.h
     LoadLoopComponent.cpp

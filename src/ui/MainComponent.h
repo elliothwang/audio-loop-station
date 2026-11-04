@@ -1,7 +1,12 @@
 #pragma once
 
 #include "AudioRecorder.h"
-#include "TrackRowComponent.h"
+#include "DeviceFooter.h"
+#include "LoopStationLookAndFeel.h"
+#include "Playhead.h"
+#include "TimelineRuler.h"
+#include "TrackLane.h"
+#include "TransportBar.h"
 #include <juce_audio_utils/juce_audio_utils.h>
 #include <juce_gui_basics/juce_gui_basics.h>
 
@@ -24,25 +29,35 @@ class MainComponent : public juce::AudioAppComponent,
     void changeListenerCallback(juce::ChangeBroadcaster* source) override;
 
   private:
-    juce::Label titleLabel; // text label for component
-    juce::TextButton recordButton{"Record"};
-    juce::TextButton playButton{"Play"};
-    juce::TextButton stopButton{"Stop"};
-    juce::TextButton saveLoopButton{"Save Loop"};
-    juce::TextButton loadLoopButton{"Load Loop"};
+    // Declared first so it outlives every component that draws with it.
+    LoopStationLookAndFeel lookAndFeel;
+
+    // Shows the icon buttons' tooltips, which stand in for the text they no longer have.
+    juce::TooltipWindow tooltipWindow{this};
+
+    TransportBar transportBar;
+
+    // The transport bar owns these buttons. The references keep the names the audio code uses.
+    juce::Button& recordButton = transportBar.recordButton();
+    juce::Button& playButton = transportBar.playButton();
+    juce::Button& stopButton = transportBar.stopButton();
+    juce::Button& saveLoopButton = transportBar.saveLoopButton();
+    juce::Button& loadLoopButton = transportBar.loadLoopButton();
+
     juce::TextButton loadWavButton{"Select .wav"}; // single wav until full loop implementation
     juce::TextButton saveClipButton{"Save Clip"};
     void timerCallback() override;
 
-    // progress bar declarations
-    double loopProgress = 0.60; // placeholder value for progress bar
-    juce::ProgressBar loopProgressBar{loopProgress};
-    juce::Label loopTimeLabel;
+    // Feeds the time readout, ruler, and playhead from the selected .wav until loops play.
+    void updateTimeline();
 
-    TrackRowComponent track1{1};
-    TrackRowComponent track2{2};
-    TrackRowComponent track3{3};
-    TrackRowComponent track4{4};
+    TimelineRuler timelineRuler;
+    TrackLane track1{1};
+    TrackLane track2{2};
+    TrackLane track3{3};
+    TrackLane track4{4};
+    Playhead playhead; // after the lanes, so it draws over them
+    DeviceFooter deviceFooter{deviceManager};
 
     // ----- Audio, needs declared here -----
     AudioRecorder audioRecorder;

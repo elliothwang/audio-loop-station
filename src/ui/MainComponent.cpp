@@ -2,34 +2,31 @@
 #include "LoadLoopComponent.h"
 #include "SaveLoopComponent.h"
 
+namespace {
+
+constexpr int kHeaderHeight = 76; // [px]
+constexpr int kRulerHeight = 28;  // [px]
+constexpr int kLaneHeight = 118;  // [px]
+constexpr int kFooterHeight = 36; // [px]
+
+} // namespace
+
 // MainComponent constructor
 MainComponent::MainComponent() : audioState(Stopped) {
-    titleLabel.setText("Audio Loop Station - UI ready", juce::dontSendNotification);
+    // The default look and feel, rather than this component's, so dialogs and tooltips match.
+    juce::LookAndFeel::setDefaultLookAndFeel(&lookAndFeel);
 
-    titleLabel.setJustificationType(juce::Justification::centred);
-
-    titleLabel.setColour(juce::Label::textColourId, juce::Colours::white);
-
-    addAndMakeVisible(titleLabel);
-    addAndMakeVisible(recordButton);
-    addAndMakeVisible(playButton);
-    addAndMakeVisible(stopButton);
-    addAndMakeVisible(saveLoopButton);
-    addAndMakeVisible(loadLoopButton);
-    addAndMakeVisible(loadWavButton);
+    addAndMakeVisible(transportBar);
+    addAndMakeVisible(deviceFooter);
+    addAndMakeVisible(loadWavButton); // after the footer, so the buttons draw on top of it
     addAndMakeVisible(saveClipButton);
 
+    addAndMakeVisible(timelineRuler);
     addAndMakeVisible(track1);
     addAndMakeVisible(track2);
     addAndMakeVisible(track3);
     addAndMakeVisible(track4);
-
-    loopProgressBar.setPercentageDisplay(false);
-    addAndMakeVisible(loopProgressBar);
-
-    loopTimeLabel.setText("0:00", juce::dontSendNotification); // placeholder track time value
-    loopTimeLabel.setJustificationType(juce::Justification::centredRight);
-    addAndMakeVisible(loopTimeLabel);
+    addAndMakeVisible(playhead);
 
     // Save Loop Dialog box handler
     saveLoopButton.onClick = [this]() {
@@ -38,7 +35,7 @@ MainComponent::MainComponent() : audioState(Stopped) {
         options.content.setOwned(
             new SaveLoopComponent()); // Create dialog window's contents with SaveLoopComponent
         options.dialogTitle = "Save Loop";
-        options.dialogBackgroundColour = juce::Colour(0xff20242b);
+        options.dialogBackgroundColour = palette::header;
         options.componentToCentreAround = this; // Centre over main screen
         options.escapeKeyTriggersCloseButton = true;
         options.useNativeTitleBar = true; // Use Windows title bar and close button
@@ -54,7 +51,7 @@ MainComponent::MainComponent() : audioState(Stopped) {
 
         options.content.setOwned(new LoadLoopComponent());
         options.dialogTitle = "Load Loop";
-        options.dialogBackgroundColour = juce::Colour(0xff20242b);
+        options.dialogBackgroundColour = palette::header;
         options.componentToCentreAround = this;
         options.escapeKeyTriggersCloseButton = true;
         options.useNativeTitleBar = true;
@@ -65,7 +62,7 @@ MainComponent::MainComponent() : audioState(Stopped) {
 
     saveClipButton.onClick = [this]() { saveClipButtonClicked(); };
 
-    setSize(1200, 650);
+    setSize(1280, kHeaderHeight + kRulerHeight + 4 * kLaneHeight + kFooterHeight);
 
     // ----- Audio work required here -----
     setAudioChannels(1, 2); // 1 input for recording, 2 output channels for playback
@@ -100,25 +97,28 @@ MainComponent::MainComponent() : audioState(Stopped) {
 
     // Audio button 'clicked' functions defined in src/audio/MainComponentAudio.cpp
     playButton.onClick = [this] { playButtonClicked(); };
-    playButton.setColour(juce::TextButton::buttonColourId, juce::Colours::green);
     playButton.setEnabled(false); // is enabled once user selects .wav
     stopButton.onClick = [this] { stopButtonClicked(); };
-    stopButton.setColour(juce::TextButton::buttonColourId, juce::Colours::red);
     stopButton.setEnabled(false);
     loadWavButton.onClick = [this] { loadWavButtonClicked(); };
 
     // Requests 20 UI updates/s
     startTimerHz(20);
+
+    // Children were built before the look and feel was installed, and some copy its colours when
+    // they're created, so tell them all again now.
+    sendLookAndFeelChange();
 }
 
 MainComponent::~MainComponent() {
     stopTimer();
     shutdownAudio();
+    juce::LookAndFeel::setDefaultLookAndFeel(nullptr);
 };
 
 void MainComponent::timerCallback() {
-    switch (audioRecorder
-                .getState()) // Get snapshot or recorder's current state. Set buttons appropriately.
+    const auto recorderState = audioRecorder.getState();
+    switch (recorderState) // Get snapshot or recorder's current state. Set buttons appropriately.
     {
     case AudioRecorder::RecordingState::Idle:
     case AudioRecorder::RecordingState::Ready:
@@ -145,58 +145,50 @@ void MainComponent::timerCallback() {
         recordButton.setEnabled(false);
         break;
     }
+
+    // The record icon has no text, so its state shows in the tooltip and as a pulsing fill.
+    recordButton.setTooltip(recordButton.getButtonText());
+    recordButton.setToggleState(recorderState == AudioRecorder::RecordingState::Recording,
+                                juce::dontSendNotification);
+    if (recordButton.getToggleState()) {
+        recordButton.repaint(); // keeps the pulse moving
+    }
+
+    updateTimeline();
+}
+
+void MainComponent::updateTimeline() {
+    const bool loaded = readerSource != nullptr;
+    const double length = loaded ? transportSource.getLengthInSeconds() : 0.0;
+    const double position = loaded ? transportSource.getCurrentPosition() : 0.0;
+    transportBar.setTime(position, length);
+    timelineRuler.setLength(length);
+    playhead.setFraction(length > 0.0 ? position / length : -1.0);
 }
 
 void MainComponent::paint(juce::Graphics& graphics) {
     // fill background
-    graphics.fillAll(juce::Colour(0xff20242b));
+    graphics.fillAll(palette::background);
 }
 
 // Called initially and when main components size changed.
 void MainComponent::resized() {
-    auto area = getLocalBounds().reduced(20); // 20px margin on sides
+    auto area = getLocalBounds();
+    transportBar.setBounds(area.removeFromTop(kHeaderHeight));
 
-    // position label
-    titleLabel.setBounds(area.removeFromTop(60)); // 60px title strip
+    auto footer = area.removeFromBottom(kFooterHeight);
+    deviceFooter.setBounds(footer);
+    // The temporary .wav buttons sit at the footer's right end until loops replace them.
+    auto temporaryButtons = footer.reduced(12, 5);
+    saveClipButton.setBounds(temporaryButtons.removeFromRight(100));
+    temporaryButtons.removeFromRight(8);
+    loadWavButton.setBounds(temporaryButtons.removeFromRight(100));
 
-    // position buttons
-    auto buttonRow = area.removeFromTop(40); // 40 px button strip
-
-    recordButton.setBounds(buttonRow.removeFromLeft(140));
-    buttonRow.removeFromLeft(10);
-
-    playButton.setBounds(buttonRow.removeFromLeft(140));
-    buttonRow.removeFromLeft(10);
-
-    stopButton.setBounds(buttonRow.removeFromLeft(140));
-    buttonRow.removeFromLeft(10);
-
-    saveLoopButton.setBounds(buttonRow.removeFromLeft(140));
-    buttonRow.removeFromLeft(10);
-
-    loadLoopButton.setBounds(buttonRow.removeFromLeft(140));
-    buttonRow.removeFromLeft(10);
-
-    loadWavButton.setBounds(buttonRow.removeFromLeft(140));
-
-    buttonRow.removeFromLeft(10);
-    saveClipButton.setBounds(buttonRow.removeFromLeft(140));
-
-    area.removeFromTop(20);
-
-    // Position progress row containing progress bar and track progress time display.
-    auto progressRow = area.removeFromTop(25);
-    loopTimeLabel.setBounds(progressRow.removeFromRight(65));
-    progressRow.removeFromRight(10);
-    loopProgressBar.setBounds(progressRow);
-
-    area.removeFromTop(10);
-
-    // Position track rows
-    track1.setBounds(area.removeFromTop(70));
-    track2.setBounds(area.removeFromTop(70));
-    track3.setBounds(area.removeFromTop(70));
-    track4.setBounds(area.removeFromTop(70));
+    timelineRuler.setBounds(area.removeFromTop(kRulerHeight));
+    for (TrackLane* lane : {&track1, &track2, &track3, &track4}) {
+        lane->setBounds(area.removeFromTop(kLaneHeight));
+    }
+    playhead.setBounds(timelineRuler.getBounds().getUnion(track4.getBounds()));
 }
 
 void MainComponent::saveClipButtonClicked() {
