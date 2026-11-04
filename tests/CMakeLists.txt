@@ -6,7 +6,8 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(Catch2)
 
 add_executable(als_tests test_smoke.cpp test_sample_clock.cpp test_loop_timing.cpp
-                         test_loop_controller.cpp test_loop_file.cpp)
+                         test_loop_controller.cpp test_loop_file.cpp
+                         test_loop_playback.cpp)
 target_link_libraries(als_tests PRIVATE als_core als_storage Catch2::Catch2WithMain als_warnings)
 
 include(Catch)
