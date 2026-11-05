@@ -1,5 +1,6 @@
 #include "LoopFile.h"
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <limits>
@@ -88,6 +89,33 @@ juce::Result readTrack(const juce::File& file, double sampleRate, std::int64_t l
     return juce::Result::ok();
 }
 
+// Reads the folder's loop.json into `info`, checking its version, rate, and length.
+juce::Result readInfo(const juce::File& folder, LoopInfo& info) {
+    const juce::File settingsFile = folder.getChildFile(kSettingsFileName);
+    if (!settingsFile.existsAsFile()) {
+        return juce::Result::fail("No " + juce::String(kSettingsFileName) + " in " +
+                                  folder.getFullPathName());
+    }
+    juce::var root;
+    if (juce::JSON::parse(settingsFile.loadFileAsString(), root).failed() || !root.isObject()) {
+        return juce::Result::fail(settingsFile.getFullPathName() + " is not valid JSON.");
+    }
+    if (static_cast<int>(root.getProperty("version", 0)) != kFormatVersion) {
+        return juce::Result::fail(settingsFile.getFileName() + " is from an unknown version.");
+    }
+
+    LoopInfo read;
+    read.name = folder.getFileName();
+    read.folder = folder;
+    read.sampleRate = root.getProperty("sampleRate", 0.0);
+    read.length = static_cast<std::int64_t>(root.getProperty("length", 0));
+    if (!validRate(read.sampleRate) || !validLength(read.length)) {
+        return juce::Result::fail(settingsFile.getFileName() + " has an invalid loop.");
+    }
+    info = std::move(read);
+    return juce::Result::ok();
+}
+
 } // namespace
 
 juce::File defaultLoopsFolder() {
@@ -129,28 +157,29 @@ juce::Result saveLoop(const SavedLoop& loop, const juce::File& folder) {
     return result;
 }
 
-juce::Result loadLoop(const juce::File& folder, SavedLoop& loop) {
-    const juce::File settingsFile = folder.getChildFile(kSettingsFileName);
-    if (!settingsFile.existsAsFile()) {
-        return juce::Result::fail("No " + juce::String(kSettingsFileName) + " in " +
-                                  folder.getFullPathName());
+std::vector<LoopInfo> listLoops(const juce::File& root) {
+    std::vector<LoopInfo> loops;
+    for (const juce::File& folder : root.findChildFiles(juce::File::findDirectories, false)) {
+        LoopInfo info;
+        if (readInfo(folder, info).wasOk()) {
+            loops.push_back(std::move(info));
+        }
     }
-    juce::var root;
-    if (juce::JSON::parse(settingsFile.loadFileAsString(), root).failed() || !root.isObject()) {
-        return juce::Result::fail(settingsFile.getFullPathName() + " is not valid JSON.");
-    }
-    if (static_cast<int>(root.getProperty("version", 0)) != kFormatVersion) {
-        return juce::Result::fail(settingsFile.getFileName() + " is from an unknown version.");
-    }
+    std::sort(loops.begin(), loops.end(), [](const LoopInfo& a, const LoopInfo& b) {
+        return a.name.compareNatural(b.name) < 0;
+    });
+    return loops;
+}
 
-    SavedLoop read;
-    read.sampleRate = root.getProperty("sampleRate", 0.0);
-    const auto length = static_cast<std::int64_t>(root.getProperty("length", 0));
-    if (!validRate(read.sampleRate) || !validLength(length)) {
-        return juce::Result::fail(settingsFile.getFileName() + " has an invalid loop.");
+juce::Result loadLoop(const juce::File& folder, SavedLoop& loop) {
+    LoopInfo info;
+    if (const juce::Result infoRead = readInfo(folder, info); infoRead.failed()) {
+        return infoRead;
     }
-    if (const juce::Result trackRead =
-            readTrack(folder.getChildFile(kTrackFileName), read.sampleRate, length, read.samples);
+    SavedLoop read;
+    read.sampleRate = info.sampleRate;
+    if (const juce::Result trackRead = readTrack(folder.getChildFile(kTrackFileName),
+                                                 info.sampleRate, info.length, read.samples);
         trackRead.failed()) {
         return trackRead;
     }
