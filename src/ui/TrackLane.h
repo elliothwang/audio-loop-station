@@ -7,6 +7,7 @@
 #include "LevelMeter.h"
 #include "core/LoopController.h"
 
+#include <juce_audio_utils/juce_audio_utils.h>
 #include <juce_gui_basics/juce_gui_basics.h>
 
 // A track's name, state, volume, mute, reverse, slip, pan, meter, and delete, laid out in one row.
@@ -28,7 +29,16 @@ class TrackLane : public juce::Component {
     // area. Repaints only on a change.
     void setState(als::TrackState newState);
 
+    // Draws the mono `clip`, recorded at `sampleRate`, as the track's waveform.
+    void setWaveform(const juce::AudioBuffer<float>& clip, double sampleRate);
+
+    // Removes the waveform, so the lane shows its empty outline.
+    void clearWaveform();
+
   private:
+    // Samples per point in the thumbnail, enough detail for a lane's width.
+    static constexpr int kSamplesPerThumbnailPoint = 256;
+
     // Moves the slip offset and updates its readout.
     void nudgeSlip(int deltaMs);
 
@@ -39,6 +49,13 @@ class TrackLane : public juce::Component {
     juce::Label nameLabel;
     juce::Label stateLabel;
     als::TrackState state = als::TrackState::Empty;
+
+    // The thumbnail is fed from memory, so the format manager and cache are only there because
+    // its constructor needs them.
+    juce::AudioFormatManager formatManager;
+    juce::AudioThumbnailCache thumbnailCache{1};
+    juce::AudioThumbnail thumbnail{kSamplesPerThumbnailPoint, formatManager, thumbnailCache};
+
     juce::Label volumeLabel;
     juce::Slider volumeSlider;
     juce::TextButton muteButton{"M"};

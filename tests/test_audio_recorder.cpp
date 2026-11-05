@@ -87,3 +87,20 @@ TEST_CASE("a clip that doesn't fit isn't loaded", "[audio_recorder]") {
     REQUIRE(recorder.requestStart());
     REQUIRE(recorder.loadClip(kInput, kSampleRate).failed());
 }
+
+TEST_CASE("each finished take or load counts as a new clip", "[audio_recorder]") {
+    AudioRecorder recorder;
+    recorder.prepare(kSampleRate);
+    REQUIRE(recorder.finishedClips() == 0);
+    recordClip(recorder);
+    REQUIRE(recorder.finishedClips() == 1);
+
+    std::vector<float> samples;
+    double sampleRate = 0.0;
+    REQUIRE(recorder.copyRecording(samples, sampleRate).wasOk());
+    REQUIRE(recorder.finishedClips() == 1); // copying isn't a new clip
+
+    REQUIRE(recorder.loadClip(kInput, kSampleRate).wasOk());
+    recorder.processInput(nullptr, 0);
+    REQUIRE(recorder.finishedClips() == 2);
+}

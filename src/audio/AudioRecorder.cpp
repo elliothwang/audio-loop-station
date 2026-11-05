@@ -94,7 +94,7 @@ void AudioRecorder::processInput(
         }
 
         captureActive = false;
-        state.store(RecordingState::Ready); // State to Ready
+        finishClip(); // State to Ready
         return;
     }
 
@@ -110,7 +110,7 @@ void AudioRecorder::processInput(
         0) // If buffer full, finish recording take and exit to avoid writing beyond capacity
     {
         captureActive = false;
-        state.store(RecordingState::Ready);
+        finishClip();
         return;
     }
 
@@ -133,8 +133,18 @@ void AudioRecorder::processInput(
     // Finish if recording buffer full
     if (recordedSampleCount == recordingBuffer.getNumSamples()) {
         captureActive = false;
-        state.store(RecordingState::Ready); // Update state to Ready
+        finishClip(); // Update state to Ready
     }
+}
+
+void AudioRecorder::finishClip() noexcept {
+    // The count goes up first, so a UI that sees Ready never misses the clip it belongs to.
+    clipCount.fetch_add(1);
+    state.store(RecordingState::Ready);
+}
+
+std::uint32_t AudioRecorder::finishedClips() const noexcept {
+    return clipCount.load();
 }
 
 // Return current snapshot of recorder's state for UI to read
@@ -163,7 +173,7 @@ void AudioRecorder::applyPendingClip() noexcept {
     }
     recordedSampleCount = static_cast<int>(pendingClip.size());
     clipPending.store(false, std::memory_order_relaxed);
-    state.store(RecordingState::Ready);
+    finishClip();
 }
 
 juce::Result AudioRecorder::loadClip(const std::vector<float>& samples, double sampleRate) {

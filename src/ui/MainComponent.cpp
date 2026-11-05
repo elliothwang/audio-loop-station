@@ -2,6 +2,8 @@
 #include "LoadLoopComponent.h"
 #include "SaveLoopComponent.h"
 
+#include <vector>
+
 namespace {
 
 constexpr int kHeaderHeight = 76; // [px]
@@ -131,7 +133,32 @@ void MainComponent::timerCallback() {
                     : hasClip ? als::TrackState::Playing
                               : als::TrackState::Empty);
 
+    updateWaveform(recorderState);
+
     updateTimeline();
+}
+
+void MainComponent::updateWaveform(AudioRecorder::RecordingState recorderState) {
+    if (recorderState == AudioRecorder::RecordingState::Recording) {
+        track1.clearWaveform(); // the old clip is being replaced
+        return;
+    }
+    // A count rather than the state, since a load returns to Ready faster than the timer ticks.
+    const std::uint32_t finished = audioRecorder.finishedClips();
+    if (finished == waveformClip || recorderState != AudioRecorder::RecordingState::Ready) {
+        return;
+    }
+    waveformClip = finished;
+    std::vector<float> samples;
+    double sampleRate = 0.0;
+    if (audioRecorder.copyRecording(samples, sampleRate).failed()) {
+        track1.clearWaveform(); // a take stopped before it captured anything
+        return;
+    }
+    // The buffer points at the copied samples rather than copying them again.
+    float* channel = samples.data();
+    track1.setWaveform(juce::AudioBuffer<float>(&channel, 1, static_cast<int>(samples.size())),
+                       sampleRate);
 }
 
 void MainComponent::updateRecordButton(AudioRecorder::RecordingState recorderState) {

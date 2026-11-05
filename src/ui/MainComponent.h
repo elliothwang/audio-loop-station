@@ -12,6 +12,8 @@
 #include <juce_audio_utils/juce_audio_utils.h>
 #include <juce_gui_basics/juce_gui_basics.h>
 
+#include <cstdint>
+
 // Declare main UI component, GUI behaviour in MainComponent.cpp
 class MainComponent : public juce::AudioAppComponent, private juce::Timer {
   public:
@@ -60,6 +62,9 @@ class MainComponent : public juce::AudioAppComponent, private juce::Timer {
     // Returns true if an audio device is running, or shows `title` with why not and returns false.
     bool audioRunning(const juce::String& title);
 
+    // Redraws track 1's waveform when a new clip finishes, and clears it while recording.
+    void updateWaveform(AudioRecorder::RecordingState recorderState);
+
     TimelineRuler timelineRuler;
     TrackLane track1{1};
     TrackLane track2{2};
@@ -71,6 +76,9 @@ class MainComponent : public juce::AudioAppComponent, private juce::Timer {
     // ----- Audio, needs declared here -----
     AudioRecorder audioRecorder;
     als::LoopPlayer loopPlayer; // plays the recorded clip
+
+    // The finished clip count the waveform was last drawn for. Message thread.
+    std::uint32_t waveformClip = 0;
 
     void playButtonClicked();
     void stopButtonClicked();
