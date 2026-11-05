@@ -87,6 +87,12 @@ TrackLane::TrackLane(int trackNumber)
     styleCaption(panLabel, {});
     updatePanLabel();
 
+    deleteButton.onClick = [this]() {
+        if (onDelete) {
+            onDelete();
+        }
+    };
+
     for (juce::Component* child : std::initializer_list<juce::Component*>{
              &numberLabel, &nameLabel, &stateLabel, &volumeLabel, &volumeSlider, &muteButton,
              &reverseButton, &slipEarlierButton, &slipLaterButton, &slipOffsetLabel, &panSlider,

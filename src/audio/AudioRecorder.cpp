@@ -190,11 +190,22 @@ juce::Result AudioRecorder::loadClip(const std::vector<float>& samples, double s
         return juce::Result::fail("The loop is empty or longer than the recorder can hold.");
     }
 
+    return handOverClip(samples, "Finish recording before loading a loop.");
+}
+
+juce::Result AudioRecorder::clearClip() {
+    // An empty clip goes through the same handover, so the buffer is still only changed on the
+    // audio thread.
+    return handOverClip({}, "Finish recording before deleting the track.");
+}
+
+juce::Result AudioRecorder::handOverClip(const std::vector<float>& samples,
+                                         const juce::String& busyMessage) {
     // Loading keeps a new take from starting until the audio thread has copied the clip in.
     auto expected = state.load();
     if ((expected != RecordingState::Idle && expected != RecordingState::Ready) ||
         !state.compare_exchange_strong(expected, RecordingState::Loading)) {
-        return juce::Result::fail("Finish recording before loading a loop.");
+        return juce::Result::fail(busyMessage);
     }
     pendingClip.assign(samples.begin(), samples.end());
     clipPending.store(true, std::memory_order_release); // pairs with the acquire in processInput

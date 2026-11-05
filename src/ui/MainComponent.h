@@ -63,6 +63,9 @@ class MainComponent : public juce::AudioAppComponent, private juce::Timer {
     // Returns true if an audio device is running, or shows `title` with why not and returns false.
     bool audioRunning(const juce::String& title);
 
+    // Stops playback and empties track 1, and reports a failure.
+    void deleteClip();
+
     // Redraws track 1's waveform when a new clip finishes, and clears it while recording.
     void updateWaveform(AudioRecorder::RecordingState recorderState);
 

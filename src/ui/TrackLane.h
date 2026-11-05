@@ -10,6 +10,8 @@
 #include <juce_audio_utils/juce_audio_utils.h>
 #include <juce_gui_basics/juce_gui_basics.h>
 
+#include <functional>
+
 // A track's name, state, volume, mute, reverse, slip, pan, meter, and delete, laid out in one row.
 class TrackLane : public juce::Component {
   public:
@@ -37,6 +39,9 @@ class TrackLane : public juce::Component {
 
     // Shows a level from 0 to 1 in the lane's meter.
     void setLevel(float level);
+
+    // Called when the lane's delete button is clicked.
+    std::function<void()> onDelete;
 
   private:
     // Samples per point in the thumbnail, enough detail for a lane's width.

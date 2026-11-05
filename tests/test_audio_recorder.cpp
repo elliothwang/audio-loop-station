@@ -104,3 +104,18 @@ TEST_CASE("each finished take or load counts as a new clip", "[audio_recorder]")
     recorder.processInput(nullptr, 0);
     REQUIRE(recorder.finishedClips() == 2);
 }
+
+TEST_CASE("clearing empties the clip at the next block", "[audio_recorder]") {
+    AudioRecorder recorder;
+    recorder.prepare(kSampleRate);
+    recordClip(recorder);
+
+    REQUIRE(recorder.clearClip().wasOk());
+    recorder.processInput(nullptr, 0);
+    REQUIRE(recorder.getState() == AudioRecorder::RecordingState::Ready);
+    REQUIRE(recorder.clipLength() == 0);
+    REQUIRE(recorder.finishedClips() == 2); // so the UI clears the waveform
+
+    REQUIRE(recorder.requestStart());
+    REQUIRE(recorder.clearClip().failed()); // a take in progress isn't deleted
+}

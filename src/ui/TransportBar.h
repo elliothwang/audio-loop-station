@@ -10,6 +10,9 @@
 // Record, play, and stop as icons, the time readout, and Save and Load.
 class TransportBar : public juce::Component {
   public:
+    // The name shown before a loop is saved or loaded.
+    static constexpr const char* kUntitledLoop = "Untitled loop";
+
     // Builds the labels and buttons with their placeholder text.
     TransportBar();
 

@@ -28,7 +28,7 @@ TransportBar::TransportBar()
     appLabel.setFont(juce::FontOptions(11.0f));
     appLabel.setColour(juce::Label::textColourId, palette::mutedText);
 
-    loopNameLabel.setText("Untitled loop", juce::dontSendNotification);
+    loopNameLabel.setText(kUntitledLoop, juce::dontSendNotification);
     loopNameLabel.setFont(juce::FontOptions(16.0f, juce::Font::bold));
 
     timeLabel.setFont(

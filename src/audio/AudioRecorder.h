@@ -34,6 +34,9 @@ class AudioRecorder {
     // block. Fails while recording, or if the clip is empty, too long, or at another sample rate.
     [[nodiscard]] juce::Result loadClip(const std::vector<float>& samples, double sampleRate);
 
+    // Empties the clip at the audio thread's next block. Fails while recording.
+    [[nodiscard]] juce::Result clearClip();
+
     RecordingState getState() const noexcept;
 
     // Returns how many clips have finished, from takes or loads. A change means a new clip, even
@@ -51,6 +54,10 @@ class AudioRecorder {
   private:
     // Marks the clip finished and Ready. Audio thread.
     void finishClip() noexcept;
+
+    // Moves to Loading and hands `samples` to the audio thread as the next clip. Fails with
+    // `busyMessage` unless the recorder is Idle or Ready.
+    juce::Result handOverClip(const std::vector<float>& samples, const juce::String& busyMessage);
 
     // std::atomic allows state to be read across threads and changed
     std::atomic<RecordingState> state{RecordingState::Idle};

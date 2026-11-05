@@ -96,6 +96,8 @@ MainComponent::MainComponent() {
         }
     };
 
+    track1.onDelete = [this]() { deleteClip(); };
+
     // Audio button 'clicked' functions defined in src/audio/MainComponentAudio.cpp
     playButton.onClick = [this] { playButtonClicked(); };
     playButton.setEnabled(false); // is enabled once a clip is recorded
@@ -137,6 +139,20 @@ void MainComponent::timerCallback() {
     track1.setLevel(playbackLevel.exchange(0.0f));
 
     updateTimeline();
+}
+
+void MainComponent::deleteClip() {
+    if (!audioRunning("Delete failed")) {
+        return;
+    }
+    loopPlayer.stop();
+    if (const juce::Result result = audioRecorder.clearClip(); result.failed()) {
+        juce::AlertWindow::showMessageBoxAsync(juce::MessageBoxIconType::WarningIcon,
+                                               "Delete failed", result.getErrorMessage());
+        return;
+    }
+    // The saved loop on disk is untouched, but the app no longer holds it.
+    transportBar.setLoopName(TransportBar::kUntitledLoop);
 }
 
 void MainComponent::updateWaveform(AudioRecorder::RecordingState recorderState) {
