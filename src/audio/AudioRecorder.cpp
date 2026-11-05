@@ -12,6 +12,7 @@ void AudioRecorder::prepare(double sampleRate) {
 
     recordingSampleRate = 0.0;
     recordedSampleCount = 0;
+    clipPending.store(false); // a pending clip no longer matches the new rate
     state.store(RecordingState::Idle);
 
     const double capacity = sampleRate * maximumRecordingSeconds;
@@ -60,6 +61,12 @@ void AudioRecorder::processInput(
     int sampleCount) // point to microphone samples, how many samples available
 {
     auto currentState = state.load(); // Get current state
+
+    // A loaded clip is copied in here, so the buffer is only ever written on the audio thread.
+    if (currentState == RecordingState::Loading) {
+        applyPendingClip();
+        return;
+    }
 
     if (currentState == RecordingState::StartRequested) // Check if recording requested from UI
     {
@@ -144,6 +151,44 @@ std::size_t AudioRecorder::clipLength() const noexcept {
     const auto current = state.load();
     const bool finished = current == RecordingState::Ready || current == RecordingState::Saving;
     return finished ? static_cast<std::size_t>(recordedSampleCount) : 0;
+}
+
+void AudioRecorder::applyPendingClip() noexcept {
+    if (!clipPending.load(std::memory_order_acquire)) {
+        return;
+    }
+    // An empty clip clears the track, and the buffer may have no channel to write to.
+    if (!pendingClip.empty()) {
+        std::copy(pendingClip.begin(), pendingClip.end(), recordingBuffer.getWritePointer(0));
+    }
+    recordedSampleCount = static_cast<int>(pendingClip.size());
+    clipPending.store(false, std::memory_order_relaxed);
+    state.store(RecordingState::Ready);
+}
+
+juce::Result AudioRecorder::loadClip(const std::vector<float>& samples, double sampleRate) {
+    // The clip plays at the device's rate, so one saved at another rate would play at the wrong
+    // pitch.
+    if (juce::roundToInt(sampleRate) != juce::roundToInt(recordingSampleRate)) {
+        return juce::Result::fail("This loop was saved at " +
+                                  juce::String(juce::roundToInt(sampleRate)) +
+                                  " Hz, but the audio device runs at " +
+                                  juce::String(juce::roundToInt(recordingSampleRate)) + " Hz.");
+    }
+    if (samples.empty() ||
+        samples.size() > static_cast<std::size_t>(recordingBuffer.getNumSamples())) {
+        return juce::Result::fail("The loop is empty or longer than the recorder can hold.");
+    }
+
+    // Loading keeps a new take from starting until the audio thread has copied the clip in.
+    auto expected = state.load();
+    if ((expected != RecordingState::Idle && expected != RecordingState::Ready) ||
+        !state.compare_exchange_strong(expected, RecordingState::Loading)) {
+        return juce::Result::fail("Finish recording before loading a loop.");
+    }
+    pendingClip.assign(samples.begin(), samples.end());
+    clipPending.store(true, std::memory_order_release); // pairs with the acquire in processInput
+    return juce::Result::ok();
 }
 
 juce::Result AudioRecorder::copyRecording(std::vector<float>& samples, double& sampleRate) {
