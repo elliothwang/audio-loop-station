@@ -13,6 +13,9 @@ class TransportBar : public juce::Component {
     // Builds the labels and buttons with their placeholder text.
     TransportBar();
 
+    // Shows the loop's name under the app's name.
+    void setLoopName(const juce::String& name);
+
     // Shows a position and a length, both in seconds, in the time readout.
     void setTime(double positionSeconds, double lengthSeconds);
 

@@ -41,6 +41,10 @@ TransportBar::TransportBar()
     }
 }
 
+void TransportBar::setLoopName(const juce::String& name) {
+    loopNameLabel.setText(name, juce::dontSendNotification);
+}
+
 void TransportBar::setTime(double positionSeconds, double lengthSeconds) {
     timeLabel.setText(formatTime(positionSeconds) + " / " + formatTime(lengthSeconds),
                       juce::dontSendNotification);

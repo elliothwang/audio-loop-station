@@ -1,32 +1,45 @@
 #include "LoadLoopComponent.h"
 
+#include "LoopStationLookAndFeel.h"
+
+#include <utility>
+
+namespace {
+
+constexpr int kDurationWidth = 90; // [px], the right-hand column
+
+// Formats a loop's length in minutes and whole seconds, as the dialog's duration column.
+juce::String formatDuration(const als::LoopInfo& loop) {
+    const int seconds = juce::roundToInt(static_cast<double>(loop.length) / loop.sampleRate);
+    return juce::String(seconds / 60) + ":" + juce::String(seconds % 60).paddedLeft('0', 2);
+}
+
+} // namespace
+
 // LoadLoopComponent constructor
-LoadLoopComponent::LoadLoopComponent() {
-    headingLabel.setText("Previously saved loops", juce::dontSendNotification);
+LoadLoopComponent::LoadLoopComponent(std::vector<als::LoopInfo> savedLoops,
+                                     std::function<void(const juce::File&)> loadCallback)
+    : loops(std::move(savedLoops)), onLoad(std::move(loadCallback)) {
+    headingLabel.setText(loops.empty() ? "No saved loops yet. Save a loop to see it here."
+                                       : "Previously saved loops",
+                         juce::dontSendNotification);
 
     loopNameHeader.setText("Loop name", juce::dontSendNotification);
 
     durationHeader.setText("Duration", juce::dontSendNotification);
 
+    loopList.setModel(this);
+    loopList.setRowHeight(30);
+    loopList.setColour(juce::ListBox::backgroundColourId, palette::lane);
+
+    loadButton.setEnabled(false); // until a loop is selected
+    loadButton.onClick = [this]() { load(loopList.getSelectedRow()); };
+    cancelButton.onClick = [this]() { close(); };
+
     addAndMakeVisible(headingLabel);
     addAndMakeVisible(loopNameHeader);
     addAndMakeVisible(durationHeader);
-
-    const std::array<juce::String, 5> names{"Practice Loop 1", "Bass Line", "Practice Loop 2",
-                                            "Practice Loop 3", "Rhythm"};
-
-    const std::array<juce::String, 5> durations{"0:08", "0:16", "0:12", "0:20", "0:04"};
-
-    // Assign name and duration to each label pair
-    for (std::size_t i = 0; i < loopNameLabels.size(); ++i) {
-        loopNameLabels[i].setText(names[i], juce::dontSendNotification);
-
-        durationLabels[i].setText(durations[i], juce::dontSendNotification);
-
-        addAndMakeVisible(loopNameLabels[i]);
-        addAndMakeVisible(durationLabels[i]);
-    }
-
+    addAndMakeVisible(loopList);
     addAndMakeVisible(loadButton);
     addAndMakeVisible(cancelButton);
 
@@ -40,22 +53,61 @@ void LoadLoopComponent::resized() {
     area.removeFromTop(10);
 
     auto headerRow = area.removeFromTop(25);
-    durationHeader.setBounds(headerRow.removeFromRight(90));
+    durationHeader.setBounds(headerRow.removeFromRight(kDurationWidth));
     loopNameHeader.setBounds(headerRow);
 
-    // Each loop iteration creates 30px row, 90px "column" on right for duration.
-    for (std::size_t i = 0; i < loopNameLabels.size(); ++i) {
-        auto row = area.removeFromTop(30);
-
-        durationLabels[i].setBounds(row.removeFromRight(90));
-        loopNameLabels[i].setBounds(row);
-    }
-
-    area.removeFromTop(20);
-
-    auto buttonRow = area.removeFromTop(30);
+    auto buttonRow = area.removeFromBottom(30);
+    area.removeFromBottom(20);
 
     loadButton.setBounds(buttonRow.removeFromRight(90));
     buttonRow.removeFromRight(10);
     cancelButton.setBounds(buttonRow.removeFromRight(90));
+
+    loopList.setBounds(area);
+}
+
+int LoadLoopComponent::getNumRows() {
+    return static_cast<int>(loops.size());
+}
+
+void LoadLoopComponent::paintListBoxItem(int row, juce::Graphics& g, int width, int height,
+                                         bool selected) {
+    if (row < 0 || row >= getNumRows()) {
+        return;
+    }
+    if (selected) {
+        g.fillAll(palette::control);
+    }
+    const als::LoopInfo& loop = loops[static_cast<std::size_t>(row)];
+    // Inset to line up with the column headers, whose labels pad their text.
+    auto bounds = juce::Rectangle<int>(width, height).reduced(4, 0);
+    g.setColour(palette::text);
+    g.setFont(14.0f);
+    g.drawText(formatDuration(loop), bounds.removeFromRight(kDurationWidth - 4),
+               juce::Justification::centredLeft);
+    g.drawText(loop.name, bounds, juce::Justification::centredLeft, true);
+}
+
+void LoadLoopComponent::listBoxItemDoubleClicked(int row, const juce::MouseEvent&) {
+    load(row);
+}
+
+void LoadLoopComponent::selectedRowsChanged(int lastRowSelected) {
+    loadButton.setEnabled(lastRowSelected >= 0);
+}
+
+void LoadLoopComponent::load(int row) {
+    if (row < 0 || row >= getNumRows()) {
+        return;
+    }
+    // Closing deletes this component, so the load runs first.
+    onLoad(loops[static_cast<std::size_t>(row)].folder);
+    close();
+}
+
+void LoadLoopComponent::close() {
+    // The dialog deletes itself, and this component with it, once it leaves the modal state.
+    if (auto* dialog = findParentComponentOfClass<juce::DialogWindow>()) {
+        dialog->exitModalState(0);
+    }
 }

@@ -45,11 +45,20 @@ class MainComponent : public juce::AudioAppComponent, private juce::Timer {
 
     void timerCallback() override;
 
+    // Sets the record button's text, tooltip, and pulse from the recorder's state.
+    void updateRecordButton(AudioRecorder::RecordingState recorderState);
+
     // Feeds the time readout, ruler, and playhead from the playing loop.
     void updateTimeline();
 
     // Saves the recorded clip as a loop called `name`, and reports how it went.
     void saveLoop(const juce::String& name);
+
+    // Loads the loop in `folder` into track 1, and reports a failure.
+    void loadLoop(const juce::File& folder);
+
+    // Returns true if an audio device is running, or shows `title` with why not and returns false.
+    bool audioRunning(const juce::String& title);
 
     TimelineRuler timelineRuler;
     TrackLane track1{1};
