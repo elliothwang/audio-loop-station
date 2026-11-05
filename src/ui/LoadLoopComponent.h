@@ -18,6 +18,7 @@ class LoadLoopComponent : public juce::Component, private juce::ListBoxModel {
     LoadLoopComponent(std::vector<als::LoopInfo> loops,
                       std::function<void(const juce::File&)> onLoad);
 
+    // Lays out the heading, column headers, list, and buttons.
     void resized() override;
 
   private:

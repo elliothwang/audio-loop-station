@@ -62,7 +62,7 @@ void AudioRecorder::processInput(
 {
     auto currentState = state.load(); // Get current state
 
-    // A loaded clip is copied in here, so the buffer is only ever written on the audio thread.
+    // Loads and deletes are applied here, so the buffer is only written on the audio thread.
     if (currentState == RecordingState::Loading) {
         applyPendingClip();
         return;
@@ -177,8 +177,7 @@ void AudioRecorder::applyPendingClip() noexcept {
 }
 
 juce::Result AudioRecorder::loadClip(const std::vector<float>& samples, double sampleRate) {
-    // The clip plays at the device's rate, so one saved at another rate would play at the wrong
-    // pitch.
+    // The clip plays at the device's rate, so a loop saved at another rate would play off pitch.
     if (juce::roundToInt(sampleRate) != juce::roundToInt(recordingSampleRate)) {
         return juce::Result::fail("This loop was saved at " +
                                   juce::String(juce::roundToInt(sampleRate)) +
@@ -208,7 +207,8 @@ juce::Result AudioRecorder::handOverClip(const std::vector<float>& samples,
         return juce::Result::fail(busyMessage);
     }
     pendingClip.assign(samples.begin(), samples.end());
-    clipPending.store(true, std::memory_order_release); // pairs with the acquire in processInput
+    // Pairs with the acquire in applyPendingClip.
+    clipPending.store(true, std::memory_order_release);
     return juce::Result::ok();
 }
 

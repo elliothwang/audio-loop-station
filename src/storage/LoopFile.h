@@ -20,7 +20,7 @@ struct SavedLoop {
 struct LoopInfo {
     juce::String name; // the folder's name
     juce::File folder;
-    double sampleRate = 0.0;
+    double sampleRate = 0.0; // [Hz]
     std::int64_t length = 0; // [samples]
 };
 
@@ -35,8 +35,8 @@ struct LoopInfo {
 // rate, or a write fails, in which case nothing is left behind.
 [[nodiscard]] juce::Result saveLoop(const SavedLoop& loop, const juce::File& folder);
 
-// Returns every loop in `root`, sorted by name. Folders without a valid loop.json are skipped,
-// so the list only offers loops that can be loaded.
+// Returns every loop in `root`, in natural order by name, or none if `root` doesn't exist.
+// Folders without a valid loop.json are skipped, so the list only offers loops that can be loaded.
 [[nodiscard]] std::vector<LoopInfo> listLoops(const juce::File& root);
 
 // Reads the loop in `folder` into `loop`. Fails if loop.json is missing or invalid, or the WAV

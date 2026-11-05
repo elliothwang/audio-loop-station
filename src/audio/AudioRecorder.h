@@ -39,8 +39,8 @@ class AudioRecorder {
 
     RecordingState getState() const noexcept;
 
-    // Returns how many clips have finished, from takes or loads. A change means a new clip, even
-    // when the state went back to Ready between two reads.
+    // Returns how many clips have finished, from takes, loads, and deletes. A change means a new
+    // clip, even when the state went back to Ready between two reads.
     [[nodiscard]] std::uint32_t finishedClips() const noexcept;
 
     // Returns the finished clip's samples, or null if there's no buffer. Audio thread only, since
@@ -73,8 +73,10 @@ class AudioRecorder {
     // Copies a pending clip into the buffer and finishes it. Audio thread, while Loading.
     void applyPendingClip() noexcept;
 
-    // Written by loadClip() while Loading, then read by the audio thread once clipPending is set.
+    // Set by handOverClip() while Loading, read by the audio thread once clipPending is true.
     std::vector<float> pendingClip;
     std::atomic<bool> clipPending{false};
+
+    // Goes up each time a clip finishes, read through finishedClips().
     std::atomic<std::uint32_t> clipCount{0};
 };
