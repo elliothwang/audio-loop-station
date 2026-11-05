@@ -12,6 +12,7 @@
 #include <juce_audio_utils/juce_audio_utils.h>
 #include <juce_gui_basics/juce_gui_basics.h>
 
+#include <atomic>
 #include <cstdint>
 
 // Declare main UI component, GUI behaviour in MainComponent.cpp
@@ -76,6 +77,10 @@ class MainComponent : public juce::AudioAppComponent, private juce::Timer {
     // ----- Audio, needs declared here -----
     AudioRecorder audioRecorder;
     als::LoopPlayer loopPlayer; // plays the recorded clip
+
+    // The loudest output since the timer last read it, from 0 to 1. Audio thread writes, timer
+    // resets it.
+    std::atomic<float> playbackLevel{0.0f};
 
     // The finished clip count the waveform was last drawn for. Message thread.
     std::uint32_t waveformClip = 0;

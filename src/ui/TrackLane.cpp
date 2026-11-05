@@ -202,6 +202,10 @@ void TrackLane::clearWaveform() {
     repaint();
 }
 
+void TrackLane::setLevel(float level) {
+    meter.setLevel(level);
+}
+
 void TrackLane::nudgeSlip(int deltaMs) {
     slipOffsetMs += deltaMs;
 

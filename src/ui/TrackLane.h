@@ -35,6 +35,9 @@ class TrackLane : public juce::Component {
     // Removes the waveform, so the lane shows its empty outline.
     void clearWaveform();
 
+    // Shows a level from 0 to 1 in the lane's meter.
+    void setLevel(float level);
+
   private:
     // Samples per point in the thumbnail, enough detail for a lane's width.
     static constexpr int kSamplesPerThumbnailPoint = 256;

@@ -134,6 +134,7 @@ void MainComponent::timerCallback() {
                               : als::TrackState::Empty);
 
     updateWaveform(recorderState);
+    track1.setLevel(playbackLevel.exchange(0.0f));
 
     updateTimeline();
 }
