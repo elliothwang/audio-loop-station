@@ -12,14 +12,12 @@ constexpr int kFooterHeight = 36; // [px]
 } // namespace
 
 // MainComponent constructor
-MainComponent::MainComponent() : audioState(Stopped) {
+MainComponent::MainComponent() {
     // The default look and feel, rather than this component's, so dialogs and tooltips match.
     juce::LookAndFeel::setDefaultLookAndFeel(&lookAndFeel);
 
     addAndMakeVisible(transportBar);
     addAndMakeVisible(deviceFooter);
-    addAndMakeVisible(loadWavButton); // after the footer, so the buttons draw on top of it
-    addAndMakeVisible(saveClipButton);
 
     addAndMakeVisible(timelineRuler);
     addAndMakeVisible(track1);
@@ -32,8 +30,9 @@ MainComponent::MainComponent() : audioState(Stopped) {
     saveLoopButton.onClick = [this]() {
         juce::DialogWindow::LaunchOptions options;
 
+        // Create dialog window's contents with SaveLoopComponent
         options.content.setOwned(
-            new SaveLoopComponent()); // Create dialog window's contents with SaveLoopComponent
+            new SaveLoopComponent([this](const juce::String& name) { saveLoop(name); }));
         options.dialogTitle = "Save Loop";
         options.dialogBackgroundColour = palette::header;
         options.componentToCentreAround = this; // Centre over main screen
@@ -60,22 +59,19 @@ MainComponent::MainComponent() : audioState(Stopped) {
         options.launchAsync();
     };
 
-    saveClipButton.onClick = [this]() { saveClipButtonClicked(); };
-
     setSize(1280, kHeaderHeight + kRulerHeight + 4 * kLaneHeight + kFooterHeight);
 
     // ----- Audio work required here -----
     setAudioChannels(1, 2); // 1 input for recording, 2 output channels for playback
-    formatManager.registerBasicFormats();
-    transportSource.addChangeListener(this);
 
     recordButton.onClick = [this]() {
         const auto currentState = audioRecorder.getState();
 
         switch (currentState) {
-        // If recorder state "Idle" or "Ready", request new recording
+        // If recorder state "Idle" or "Ready", stop playback and request new recording
         case AudioRecorder::RecordingState::Idle:
         case AudioRecorder::RecordingState::Ready:
+            loopPlayer.stop();
             audioRecorder.requestStart();
             break;
 
@@ -97,10 +93,9 @@ MainComponent::MainComponent() : audioState(Stopped) {
 
     // Audio button 'clicked' functions defined in src/audio/MainComponentAudio.cpp
     playButton.onClick = [this] { playButtonClicked(); };
-    playButton.setEnabled(false); // is enabled once user selects .wav
+    playButton.setEnabled(false); // is enabled once a clip is recorded
     stopButton.onClick = [this] { stopButtonClicked(); };
     stopButton.setEnabled(false);
-    loadWavButton.onClick = [this] { loadWavButtonClicked(); };
 
     // Requests 20 UI updates/s
     startTimerHz(20);
@@ -154,16 +149,33 @@ void MainComponent::timerCallback() {
         recordButton.repaint(); // keeps the pulse moving
     }
 
+    // Play needs a finished clip, and the player only reports a length once there is one.
+    const bool hasClip = loopPlayer.length() > 0;
+    const bool playing = loopPlayer.playing();
+    playButton.setEnabled(hasClip && !playing);
+    stopButton.setEnabled(playing);
+
+    // The clip is track 1 until more tracks can record. Playing is the state for a track that
+    // holds audio, so it shows whether or not playback is running.
+    const bool recording = recorderState == AudioRecorder::RecordingState::Recording;
+    track1.setState(recording ? als::TrackState::Recording
+                    : hasClip ? als::TrackState::Playing
+                              : als::TrackState::Empty);
+
     updateTimeline();
 }
 
 void MainComponent::updateTimeline() {
-    const bool loaded = readerSource != nullptr;
-    const double length = loaded ? transportSource.getLengthInSeconds() : 0.0;
-    const double position = loaded ? transportSource.getCurrentPosition() : 0.0;
+    juce::AudioIODevice* device = deviceManager.getCurrentAudioDevice();
+    const double sampleRate = device != nullptr ? device->getCurrentSampleRate() : 0.0;
+    if (sampleRate <= 0.0) {
+        return;
+    }
+    const double length = static_cast<double>(loopPlayer.length()) / sampleRate;
+    const double position = static_cast<double>(loopPlayer.position()) / sampleRate;
     transportBar.setTime(position, length);
     timelineRuler.setLength(length);
-    playhead.setFraction(length > 0.0 ? position / length : -1.0);
+    playhead.setFraction(loopPlayer.playing() && length > 0.0 ? position / length : -1.0);
 }
 
 void MainComponent::paint(juce::Graphics& graphics) {
@@ -176,13 +188,7 @@ void MainComponent::resized() {
     auto area = getLocalBounds();
     transportBar.setBounds(area.removeFromTop(kHeaderHeight));
 
-    auto footer = area.removeFromBottom(kFooterHeight);
-    deviceFooter.setBounds(footer);
-    // The temporary .wav buttons sit at the footer's right end until loops replace them.
-    auto temporaryButtons = footer.reduced(12, 5);
-    saveClipButton.setBounds(temporaryButtons.removeFromRight(100));
-    temporaryButtons.removeFromRight(8);
-    loadWavButton.setBounds(temporaryButtons.removeFromRight(100));
+    deviceFooter.setBounds(area.removeFromBottom(kFooterHeight));
 
     timelineRuler.setBounds(area.removeFromTop(kRulerHeight));
     for (TrackLane* lane : {&track1, &track2, &track3, &track4}) {
@@ -191,46 +197,19 @@ void MainComponent::resized() {
     playhead.setBounds(timelineRuler.getBounds().getUnion(track4.getBounds()));
 }
 
-void MainComponent::saveClipButtonClicked() {
-    // Check if recording finished
-    if (audioRecorder.getState() != AudioRecorder::RecordingState::Ready) {
-        // Alert warning if saving before ready. TODO: update pending application design choices.
-        juce::AlertWindow::showMessageBoxAsync(juce::MessageBoxIconType::WarningIcon, "Save Clip",
-                                               "Record a clip and finish recording before saving.");
-        return;
+void MainComponent::saveLoop(const juce::String& name) {
+    als::SavedLoop loop;
+    juce::Result result = audioRecorder.copyRecording(loop.samples, loop.sampleRate);
+    const juce::File folder = als::loopFolder(als::defaultLoopsFolder(), name);
+    if (result.wasOk()) {
+        result = als::saveLoop(loop, folder);
     }
 
-    // Create file chooser, suggested location, .wav filetype filter
-    saveClipChooser = std::make_unique<juce::FileChooser>(
-        "Save recorded clip",
-        juce::File::getSpecialLocation(juce::File::userDocumentsDirectory)
-            .getChildFile("recording.wav"),
-        "*.wav");
-
-    // Chooser permissions. Opens in save mode, user chooses file, warning if file already exists.
-    const int saveChooserFlags = juce::FileBrowserComponent::saveMode |
-                                 juce::FileBrowserComponent::canSelectFiles |
-                                 juce::FileBrowserComponent::warnAboutOverwriting;
-
-    // Open chooser, async open dialog and return without waiting
-    saveClipChooser->launchAsync(saveChooserFlags, [this](const juce::FileChooser& fileChooser) {
-        const auto destination = fileChooser.getResult();
-
-        // An empty result means the user cancelled.
-        if (destination == juce::File{}) // Retrieve user chosen file path
-        {
-            return;
-        }
-
-        const auto result = audioRecorder.saveToWav(destination); // writes WAV file, returns result
-
-        // Alerts, TO UPDATE pending app design choice
-        if (result.failed()) {
-            juce::AlertWindow::showMessageBoxAsync(juce::MessageBoxIconType::WarningIcon,
-                                                   "Save failed", result.getErrorMessage());
-        } else {
-            juce::AlertWindow::showMessageBoxAsync(juce::MessageBoxIconType::InfoIcon, "Clip saved",
-                                                   destination.getFullPathName());
-        }
-    });
+    if (result.failed()) {
+        juce::AlertWindow::showMessageBoxAsync(juce::MessageBoxIconType::WarningIcon, "Save failed",
+                                               result.getErrorMessage());
+    } else {
+        juce::AlertWindow::showMessageBoxAsync(juce::MessageBoxIconType::InfoIcon, "Loop saved",
+                                               folder.getFullPathName());
+    }
 }

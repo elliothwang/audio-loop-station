@@ -5,6 +5,11 @@
 #include <limits>
 
 void AudioRecorder::prepare(double sampleRate) {
+    // A device restart at the same rate keeps the clip, so only reset when the rate changes.
+    if (sampleRate == recordingSampleRate && recordingBuffer.getNumSamples() > 0) {
+        return;
+    }
+
     recordingSampleRate = 0.0;
     recordedSampleCount = 0;
     state.store(RecordingState::Idle);
@@ -130,67 +135,35 @@ AudioRecorder::RecordingState AudioRecorder::getState() const noexcept {
     return state.load();
 }
 
-juce::Result AudioRecorder::saveToWav(const juce::File& destination) {
-    auto expected = RecordingState::Ready; // Only save when recording ready
+const float* AudioRecorder::clip() const noexcept {
+    return recordingBuffer.getNumSamples() > 0 ? recordingBuffer.getReadPointer(0) : nullptr;
+}
 
-    // Only save if finished recording. If state Ready, change to Recording.
+std::size_t AudioRecorder::clipLength() const noexcept {
+    // Saving only reads the clip, so it can still play while it's copied.
+    const auto current = state.load();
+    const bool finished = current == RecordingState::Ready || current == RecordingState::Saving;
+    return finished ? static_cast<std::size_t>(recordedSampleCount) : 0;
+}
+
+juce::Result AudioRecorder::copyRecording(std::vector<float>& samples, double& sampleRate) {
+    auto expected = RecordingState::Ready; // Only copy when recording ready
+
+    // Saving keeps the audio thread from starting a new take while the clip is copied.
     if (!state.compare_exchange_strong(expected, RecordingState::Saving)) {
         return juce::Result::fail("Finish recording before saving.");
     }
 
-    const auto result = [&]() -> juce::Result {
-        // Check actual clip to save
-        if (recordedSampleCount <= 0 || recordingSampleRate <= 0.0) {
-            return juce::Result::fail("There is no recorded audio to save.");
-        }
+    // Check actual clip to copy
+    if (recordedSampleCount <= 0 || recordingSampleRate <= 0.0) {
+        state.store(RecordingState::Ready);
+        return juce::Result::fail("There is no recorded audio to save.");
+    }
 
-        // Create temp file before replacing at destination one writing succeeds
-        juce::TemporaryFile temporaryFile(destination);
-        auto stream = temporaryFile.getFile()
-                          .createOutputStream(); // output stream to write bytes to WAV file
-
-        // If file opening fails
-        if (stream == nullptr) {
-            return juce::Result::fail("Could not open the file for writing.");
-        }
-
-        juce::WavAudioFormat wavFormat; // WavAudioFormat organizes audio into WAV file
-
-        std::unique_ptr<juce::AudioFormatWriter> writer(
-            wavFormat.createWriterFor(stream.get(), recordingSampleRate,
-                                      1,  // 1 channel
-                                      24, // Samples save with 24-bit
-                                      {}, // No added metadata
-                                      0));
-
-        // If writer creation fails
-        if (writer == nullptr) {
-            return juce::Result::fail("Could not create the WAV writer.");
-        }
-
-        // The wav writer owns stream. unique_ptr no longer does
-        stream.release();
-
-        // Write samples from recording Buffer starting at 0 up to actual recordedSampleCount.
-        // Returns result T/F
-        const bool written =
-            writer->writeFromAudioSampleBuffer(recordingBuffer, 0, recordedSampleCount);
-
-        // Close the writer and finish the WAV header.
-        writer.reset();
-
-        if (!written) {
-            return juce::Result::fail("Could not write the recorded audio.");
-        }
-
-        // Move temp file to destination, replace if needed.
-        if (!temporaryFile.overwriteTargetFileWithTemporary()) {
-            return juce::Result::fail("Could not save to the selected location.");
-        }
-
-        return juce::Result::ok();
-    }();
+    const float* recorded = recordingBuffer.getReadPointer(0);
+    samples.assign(recorded, recorded + recordedSampleCount);
+    sampleRate = recordingSampleRate;
 
     state.store(RecordingState::Ready); // Update Recording state
-    return result;
+    return juce::Result::ok();
 }

@@ -4,6 +4,10 @@ add_library(als_core STATIC
     ControllerSnapshot.h
     LoopController.cpp
     LoopController.h
+    LoopPlayback.cpp
+    LoopPlayback.h
+    LoopPlayer.cpp
+    LoopPlayer.h
     LoopTiming.cpp
     LoopTiming.h
     SampleClock.cpp

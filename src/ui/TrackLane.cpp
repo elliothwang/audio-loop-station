@@ -112,9 +112,13 @@ void TrackLane::paint(juce::Graphics& g) {
     g.setColour(palette::controlBorder);
     g.fillPath(dashedOutline);
 
+    // Waveforms replace this text once they're drawn.
+    const char* text = state == als::TrackState::Empty       ? "Empty. Press Record to add a take."
+                       : state == als::TrackState::Recording ? "Recording"
+                                                             : "Recorded";
     g.setColour(palette::mutedText);
     g.setFont(13.0f);
-    g.drawText("Empty. Press Record to add a take.", waveformArea, juce::Justification::centred);
+    g.drawText(text, waveformArea, juce::Justification::centred);
 }
 
 void TrackLane::resized() {
@@ -150,6 +154,31 @@ void TrackLane::resized() {
     slipEarlierButton.setBounds(buttonRow.removeFromLeft(kSmallButtonSize));
     slipLaterButton.setBounds(buttonRow.removeFromRight(kSmallButtonSize));
     slipOffsetLabel.setBounds(buttonRow);
+}
+
+void TrackLane::setState(als::TrackState newState) {
+    if (newState == state) {
+        return;
+    }
+    state = newState;
+    switch (state) {
+    case als::TrackState::Empty:
+        stateLabel.setText("EMPTY", juce::dontSendNotification);
+        stateLabel.setColour(juce::Label::backgroundColourId, palette::control);
+        stateLabel.setColour(juce::Label::textColourId, palette::mutedText);
+        break;
+    case als::TrackState::Recording:
+        stateLabel.setText("REC", juce::dontSendNotification);
+        stateLabel.setColour(juce::Label::backgroundColourId, palette::record);
+        stateLabel.setColour(juce::Label::textColourId, palette::text);
+        break;
+    case als::TrackState::Playing:
+        stateLabel.setText("LOOP", juce::dontSendNotification);
+        stateLabel.setColour(juce::Label::backgroundColourId, palette::accent);
+        stateLabel.setColour(juce::Label::textColourId, palette::background);
+        break;
+    }
+    repaint();
 }
 
 void TrackLane::nudgeSlip(int deltaMs) {

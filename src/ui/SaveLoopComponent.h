@@ -1,15 +1,23 @@
 #pragma once
 
+// The Save dialog's contents. It asks for a loop name and hands it to MainComponent to save.
+
 #include <juce_gui_basics/juce_gui_basics.h>
+
+#include <functional>
 
 class SaveLoopComponent : public juce::Component // SaveLoop inherits from juce::Component
 {
   public:
-    SaveLoopComponent(); // Declare constructor
+    // Save, or Return in the name field, passes the typed name to `onSave` and closes the dialog.
+    explicit SaveLoopComponent(std::function<void(const juce::String&)> onSave);
 
     void resized() override;
 
   private:
+    // Closes the dialog window this component sits in.
+    void close();
+
     juce::Label loopNameLabel;
     juce::TextEditor loopNameEditor; // Field for user input
 

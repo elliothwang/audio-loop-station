@@ -5,6 +5,7 @@
 
 #include "IconButton.h"
 #include "LevelMeter.h"
+#include "core/LoopController.h"
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
@@ -23,6 +24,10 @@ class TrackLane : public juce::Component {
     // Positions the controls in the header.
     void resized() override;
 
+    // Shows whether the track is empty, recording, or holds a clip, in the badge and the waveform
+    // area. Repaints only on a change.
+    void setState(als::TrackState newState);
+
   private:
     // Moves the slip offset and updates its readout.
     void nudgeSlip(int deltaMs);
@@ -33,6 +38,7 @@ class TrackLane : public juce::Component {
     juce::Label numberLabel;
     juce::Label nameLabel;
     juce::Label stateLabel;
+    als::TrackState state = als::TrackState::Empty;
     juce::Label volumeLabel;
     juce::Slider volumeSlider;
     juce::TextButton muteButton{"M"};

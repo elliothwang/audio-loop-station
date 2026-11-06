@@ -9,14 +9,13 @@ Team: Elliot Hwang, Hunter Shipman, Robert Thom.
 | ---------- | ---------------------------------------------------------------- | ------------------------- |
 | `src/core/`    | Sample clock, loop timing, track data, loop controller       | No                        |
 | `src/audio/`   | Audio engine: device I/O and callback                        | Yes (JUCE or miniaudio)   |
-| `src/storage/` | Save and load loops (one WAV per track plus a settings file) | No                        |
+| `src/storage/` | Save and load loops (one WAV per track plus a settings file) | Yes (JUCE files and WAV)  |
 | `src/ui/`      | Screens and controls                                         | Yes (JUCE or Dear ImGui)  |
 | `src/app/`     | `main()`, wires everything together                          | Yes                       |
 | `tests/`       | Unit tests for `core` and `storage`                          | n/a                       |
 | `docs/`        | Project plan and architecture notes                          | n/a                       |
 
-`src/core/` and `src/storage/` must not include JUCE, miniaudio, or Dear ImGui headers. The `no_framework_includes` test enforces this.
-`src/audio/` and `src/ui/` are empty until the team picks a framework.
+`src/core/` must not include JUCE, miniaudio, or Dear ImGui headers. The `no_framework_includes` test enforces this.
 
 ## Requirements
 
