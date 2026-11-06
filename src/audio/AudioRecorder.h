@@ -51,6 +51,11 @@ class AudioRecorder {
     // Audio thread only.
     [[nodiscard]] std::size_t clipLength() const noexcept;
 
+    // Buffer capacity in samples. This will be read when audio processing stopped.
+    [[nodiscard]] int capacity() const noexcept {
+        return recordingBuffer.getNumSamples();
+    }
+
   private:
     // Marks the clip finished and Ready. Audio thread.
     void finishClip() noexcept;

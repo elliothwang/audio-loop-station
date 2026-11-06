@@ -9,6 +9,11 @@
 void MainComponent::prepareToPlay(int /*samplesPerBlockExpected*/, double sampleRate) {
     audioRecorder.prepare(sampleRate);
     loopPlayer.prepare(sampleRate);
+
+    // Construct loop controller once, and after recorder has allocated buffer
+    if (!loopController && audioRecorder.capacity() > 0){
+        loopController.emplace(1, static_cast<std::int64_t>(audioRecorder.capacity()));   // emplace constructs loop controller inside optional
+    }
 }
 
 // Nothing to release, since the recorder and player keep their buffers between devices.
