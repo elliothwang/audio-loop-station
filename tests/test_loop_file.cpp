@@ -109,3 +109,24 @@ TEST_CASE("loop names become legal folder names", "[loop_file]") {
     REQUIRE(als::loopFolder(root, "..") == juce::File());
     REQUIRE(als::loopFolder(root, "   ") == juce::File());
 }
+
+TEST_CASE("listing loops skips folders that aren't loops", "[loop_file]") {
+    const TemporaryFolder folder;
+    REQUIRE(als::saveLoop(makeLoop(), folder.root.getChildFile("Loop 10")).wasOk());
+    REQUIRE(als::saveLoop(makeLoop(), folder.root.getChildFile("Loop 2")).wasOk());
+    REQUIRE(folder.root.getChildFile("Not a loop").createDirectory().wasOk());
+    REQUIRE(folder.root.getChildFile("stray.txt").replaceWithText("hello"));
+
+    const std::vector<als::LoopInfo> loops = als::listLoops(folder.root);
+    REQUIRE(loops.size() == 2);
+    REQUIRE(loops[0].name == "Loop 2"); // natural order, so 2 comes before 10
+    REQUIRE(loops[1].name == "Loop 10");
+    REQUIRE(loops[0].sampleRate == 48000.0);
+    REQUIRE(loops[0].length == 1000);
+    REQUIRE(loops[0].folder == folder.root.getChildFile("Loop 2"));
+}
+
+TEST_CASE("listing a missing folder finds no loops", "[loop_file]") {
+    const TemporaryFolder folder;
+    REQUIRE(als::listLoops(folder.root.getChildFile("Missing")).empty());
+}

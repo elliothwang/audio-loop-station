@@ -2,6 +2,8 @@
 #include "LoadLoopComponent.h"
 #include "SaveLoopComponent.h"
 
+#include <vector>
+
 namespace {
 
 constexpr int kHeaderHeight = 76; // [px]
@@ -48,7 +50,9 @@ MainComponent::MainComponent() {
     loadLoopButton.onClick = [this]() {
         juce::DialogWindow::LaunchOptions options;
 
-        options.content.setOwned(new LoadLoopComponent());
+        options.content.setOwned(
+            new LoadLoopComponent(als::listLoops(als::defaultLoopsFolder()),
+                                  [this](const juce::File& folder) { loadLoop(folder); }));
         options.dialogTitle = "Load Loop";
         options.dialogBackgroundColour = palette::header;
         options.componentToCentreAround = this;
@@ -81,8 +85,9 @@ MainComponent::MainComponent() {
             audioRecorder.requestStop();
             break;
 
-        // Do nothing while saving
+        // Do nothing while saving or loading
         case AudioRecorder::RecordingState::Saving:
+        case AudioRecorder::RecordingState::Loading:
             break;
 
         // Do nothing while audio thread finsishes stopping
@@ -90,6 +95,8 @@ MainComponent::MainComponent() {
             break;
         }
     };
+
+    track1.onDelete = [this]() { deleteClip(); };
 
     // Audio button 'clicked' functions defined in src/audio/MainComponentAudio.cpp
     playButton.onClick = [this] { playButtonClicked(); };
@@ -113,6 +120,65 @@ MainComponent::~MainComponent() {
 
 void MainComponent::timerCallback() {
     const auto recorderState = audioRecorder.getState();
+    updateRecordButton(recorderState);
+
+    // Play needs a finished clip, and the player only reports a length once there is one.
+    const bool hasClip = loopPlayer.length() > 0;
+    const bool playing = loopPlayer.playing();
+    playButton.setEnabled(hasClip && !playing);
+    stopButton.setEnabled(playing);
+
+    // The clip is track 1 until more tracks can record. Playing is the state for a track that
+    // holds audio, so it shows whether or not playback is running.
+    const bool recording = recorderState == AudioRecorder::RecordingState::Recording;
+    track1.setState(recording ? als::TrackState::Recording
+                    : hasClip ? als::TrackState::Playing
+                              : als::TrackState::Empty);
+
+    updateWaveform(recorderState);
+    track1.setLevel(playbackLevel.exchange(0.0f));
+
+    updateTimeline();
+}
+
+void MainComponent::deleteClip() {
+    if (!audioRunning("Delete failed")) {
+        return;
+    }
+    loopPlayer.stop();
+    if (const juce::Result result = audioRecorder.clearClip(); result.failed()) {
+        juce::AlertWindow::showMessageBoxAsync(juce::MessageBoxIconType::WarningIcon,
+                                               "Delete failed", result.getErrorMessage());
+        return;
+    }
+    // The saved loop on disk is untouched, but the app no longer holds it.
+    transportBar.setLoopName(TransportBar::kUntitledLoop);
+}
+
+void MainComponent::updateWaveform(AudioRecorder::RecordingState recorderState) {
+    if (recorderState == AudioRecorder::RecordingState::Recording) {
+        track1.clearWaveform(); // the old clip is being replaced
+        return;
+    }
+    // A count rather than the state, since a load returns to Ready faster than the timer ticks.
+    const std::uint32_t finished = audioRecorder.finishedClips();
+    if (finished == waveformClip || recorderState != AudioRecorder::RecordingState::Ready) {
+        return;
+    }
+    waveformClip = finished;
+    std::vector<float> samples;
+    double sampleRate = 0.0;
+    if (audioRecorder.copyRecording(samples, sampleRate).failed()) {
+        track1.clearWaveform(); // a take stopped before it captured anything
+        return;
+    }
+    // The buffer points at the copied samples rather than copying them again.
+    float* channel = samples.data();
+    track1.setWaveform(juce::AudioBuffer<float>(&channel, 1, static_cast<int>(samples.size())),
+                       sampleRate);
+}
+
+void MainComponent::updateRecordButton(AudioRecorder::RecordingState recorderState) {
     switch (recorderState) // Get snapshot or recorder's current state. Set buttons appropriately.
     {
     case AudioRecorder::RecordingState::Idle:
@@ -139,6 +205,10 @@ void MainComponent::timerCallback() {
         recordButton.setButtonText("Saving...");
         recordButton.setEnabled(false);
         break;
+    case AudioRecorder::RecordingState::Loading:
+        recordButton.setButtonText("Loading...");
+        recordButton.setEnabled(false);
+        break;
     }
 
     // The record icon has no text, so its state shows in the tooltip and as a pulsing fill.
@@ -148,21 +218,6 @@ void MainComponent::timerCallback() {
     if (recordButton.getToggleState()) {
         recordButton.repaint(); // keeps the pulse moving
     }
-
-    // Play needs a finished clip, and the player only reports a length once there is one.
-    const bool hasClip = loopPlayer.length() > 0;
-    const bool playing = loopPlayer.playing();
-    playButton.setEnabled(hasClip && !playing);
-    stopButton.setEnabled(playing);
-
-    // The clip is track 1 until more tracks can record. Playing is the state for a track that
-    // holds audio, so it shows whether or not playback is running.
-    const bool recording = recorderState == AudioRecorder::RecordingState::Recording;
-    track1.setState(recording ? als::TrackState::Recording
-                    : hasClip ? als::TrackState::Playing
-                              : als::TrackState::Empty);
-
-    updateTimeline();
 }
 
 void MainComponent::updateTimeline() {
@@ -209,7 +264,39 @@ void MainComponent::saveLoop(const juce::String& name) {
         juce::AlertWindow::showMessageBoxAsync(juce::MessageBoxIconType::WarningIcon, "Save failed",
                                                result.getErrorMessage());
     } else {
+        transportBar.setLoopName(folder.getFileName());
         juce::AlertWindow::showMessageBoxAsync(juce::MessageBoxIconType::InfoIcon, "Loop saved",
                                                folder.getFullPathName());
     }
+}
+
+void MainComponent::loadLoop(const juce::File& folder) {
+    if (!audioRunning("Load failed")) {
+        return;
+    }
+    als::SavedLoop loop;
+    juce::Result result = als::loadLoop(folder, loop);
+    if (result.wasOk()) {
+        result = audioRecorder.loadClip(loop.samples, loop.sampleRate);
+    }
+
+    if (result.failed()) {
+        juce::AlertWindow::showMessageBoxAsync(juce::MessageBoxIconType::WarningIcon, "Load failed",
+                                               result.getErrorMessage());
+        return;
+    }
+    // Stopped only once the load is accepted, so a refused loop leaves playback running.
+    loopPlayer.stop();
+    transportBar.setLoopName(folder.getFileName());
+}
+
+bool MainComponent::audioRunning(const juce::String& title) {
+    // The audio thread finishes loads and deletes, so without a device they would never complete.
+    juce::AudioIODevice* device = deviceManager.getCurrentAudioDevice();
+    if (device != nullptr && device->isPlaying()) {
+        return true;
+    }
+    juce::AlertWindow::showMessageBoxAsync(juce::MessageBoxIconType::WarningIcon, title,
+                                           "No audio device is running.");
+    return false;
 }

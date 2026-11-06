@@ -61,3 +61,61 @@ TEST_CASE("a restart at the same rate keeps the clip", "[audio_recorder]") {
     recorder.prepare(44100.0); // a new rate no longer matches the clip
     REQUIRE(recorder.clipLength() == 0);
 }
+
+TEST_CASE("a loaded clip replaces the recording at the next block", "[audio_recorder]") {
+    AudioRecorder recorder;
+    recorder.prepare(kSampleRate);
+    recordClip(recorder);
+
+    const std::vector<float> loaded{0.5f, 0.5f, -0.5f, -0.5f};
+    REQUIRE(recorder.loadClip(loaded, kSampleRate).wasOk());
+    REQUIRE(recorder.clipLength() == 0); // not playable until the audio thread copies it in
+    REQUIRE_FALSE(recorder.requestStart());
+
+    recorder.processInput(nullptr, 0);
+    REQUIRE(recorder.getState() == AudioRecorder::RecordingState::Ready);
+    REQUIRE(std::vector<float>(recorder.clip(), recorder.clip() + recorder.clipLength()) == loaded);
+}
+
+TEST_CASE("a clip that doesn't fit isn't loaded", "[audio_recorder]") {
+    AudioRecorder recorder;
+    recorder.prepare(kSampleRate);
+    REQUIRE(recorder.loadClip(kInput, 44100.0).failed());
+    REQUIRE(recorder.loadClip({}, kSampleRate).failed());
+    REQUIRE(recorder.loadClip(std::vector<float>(61 * 48000), kSampleRate).failed());
+
+    REQUIRE(recorder.requestStart());
+    REQUIRE(recorder.loadClip(kInput, kSampleRate).failed());
+}
+
+TEST_CASE("each finished take or load counts as a new clip", "[audio_recorder]") {
+    AudioRecorder recorder;
+    recorder.prepare(kSampleRate);
+    REQUIRE(recorder.finishedClips() == 0);
+    recordClip(recorder);
+    REQUIRE(recorder.finishedClips() == 1);
+
+    std::vector<float> samples;
+    double sampleRate = 0.0;
+    REQUIRE(recorder.copyRecording(samples, sampleRate).wasOk());
+    REQUIRE(recorder.finishedClips() == 1); // copying isn't a new clip
+
+    REQUIRE(recorder.loadClip(kInput, kSampleRate).wasOk());
+    recorder.processInput(nullptr, 0);
+    REQUIRE(recorder.finishedClips() == 2);
+}
+
+TEST_CASE("clearing empties the clip at the next block", "[audio_recorder]") {
+    AudioRecorder recorder;
+    recorder.prepare(kSampleRate);
+    recordClip(recorder);
+
+    REQUIRE(recorder.clearClip().wasOk());
+    recorder.processInput(nullptr, 0);
+    REQUIRE(recorder.getState() == AudioRecorder::RecordingState::Ready);
+    REQUIRE(recorder.clipLength() == 0);
+    REQUIRE(recorder.finishedClips() == 2); // so the UI clears the waveform
+
+    REQUIRE(recorder.requestStart());
+    REQUIRE(recorder.clearClip().failed()); // a take in progress isn't deleted
+}

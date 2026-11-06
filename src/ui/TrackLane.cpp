@@ -87,6 +87,12 @@ TrackLane::TrackLane(int trackNumber)
     styleCaption(panLabel, {});
     updatePanLabel();
 
+    deleteButton.onClick = [this]() {
+        if (onDelete) {
+            onDelete();
+        }
+    };
+
     for (juce::Component* child : std::initializer_list<juce::Component*>{
              &numberLabel, &nameLabel, &stateLabel, &volumeLabel, &volumeSlider, &muteButton,
              &reverseButton, &slipEarlierButton, &slipLaterButton, &slipOffsetLabel, &panSlider,
@@ -104,6 +110,15 @@ void TrackLane::paint(juce::Graphics& g) {
     const auto lane = getLocalBounds().withTrimmedLeft(kHeaderWidth).toFloat();
     const auto waveformArea =
         lane.reduced(8.0f, 0.0f).withSizeKeepingCentre(lane.getWidth() - 16.0f, kWaveformHeight);
+    if (thumbnail.getTotalLength() > 0.0) {
+        g.setColour(palette::meterTrack);
+        g.fillRoundedRectangle(waveformArea, 6.0f);
+        g.setColour(palette::accent);
+        thumbnail.drawChannel(g, waveformArea.toNearestInt(), 0.0, thumbnail.getTotalLength(), 0,
+                              1.0f);
+        return;
+    }
+
     juce::Path outline;
     outline.addRoundedRectangle(waveformArea, 6.0f);
     juce::Path dashedOutline;
@@ -112,7 +127,7 @@ void TrackLane::paint(juce::Graphics& g) {
     g.setColour(palette::controlBorder);
     g.fillPath(dashedOutline);
 
-    // Waveforms replace this text once they're drawn.
+    // The waveform replaces this text once the track has a clip.
     const char* text = state == als::TrackState::Empty       ? "Empty. Press Record to add a take."
                        : state == als::TrackState::Recording ? "Recording"
                                                              : "Recorded";
@@ -179,6 +194,22 @@ void TrackLane::setState(als::TrackState newState) {
         break;
     }
     repaint();
+}
+
+void TrackLane::setWaveform(const juce::AudioBuffer<float>& clip, double sampleRate) {
+    // The whole clip goes in at once, so the thumbnail is complete before the next paint.
+    thumbnail.reset(1, sampleRate, clip.getNumSamples());
+    thumbnail.addBlock(0, clip, 0, clip.getNumSamples());
+    repaint();
+}
+
+void TrackLane::clearWaveform() {
+    thumbnail.clear();
+    repaint();
+}
+
+void TrackLane::setLevel(float level) {
+    meter.setLevel(level);
 }
 
 void TrackLane::nudgeSlip(int deltaMs) {

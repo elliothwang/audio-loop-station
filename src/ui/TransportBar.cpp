@@ -28,7 +28,7 @@ TransportBar::TransportBar()
     appLabel.setFont(juce::FontOptions(11.0f));
     appLabel.setColour(juce::Label::textColourId, palette::mutedText);
 
-    loopNameLabel.setText("Untitled loop", juce::dontSendNotification);
+    loopNameLabel.setText(kUntitledLoop, juce::dontSendNotification);
     loopNameLabel.setFont(juce::FontOptions(16.0f, juce::Font::bold));
 
     timeLabel.setFont(
@@ -39,6 +39,10 @@ TransportBar::TransportBar()
              &appLabel, &loopNameLabel, &timeLabel, &record, &play, &stop, &saveLoop, &loadLoop}) {
         addAndMakeVisible(child);
     }
+}
+
+void TransportBar::setLoopName(const juce::String& name) {
+    loopNameLabel.setText(name, juce::dontSendNotification);
 }
 
 void TransportBar::setTime(double positionSeconds, double lengthSeconds) {

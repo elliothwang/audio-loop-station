@@ -12,6 +12,9 @@
 #include <juce_audio_utils/juce_audio_utils.h>
 #include <juce_gui_basics/juce_gui_basics.h>
 
+#include <atomic>
+#include <cstdint>
+
 // Declare main UI component, GUI behaviour in MainComponent.cpp
 class MainComponent : public juce::AudioAppComponent, private juce::Timer {
   public:
@@ -45,11 +48,26 @@ class MainComponent : public juce::AudioAppComponent, private juce::Timer {
 
     void timerCallback() override;
 
+    // Sets the record button's text, tooltip, and pulse from the recorder's state.
+    void updateRecordButton(AudioRecorder::RecordingState recorderState);
+
     // Feeds the time readout, ruler, and playhead from the playing loop.
     void updateTimeline();
 
     // Saves the recorded clip as a loop called `name`, and reports how it went.
     void saveLoop(const juce::String& name);
+
+    // Loads the loop in `folder` into track 1, and reports a failure.
+    void loadLoop(const juce::File& folder);
+
+    // Returns true if an audio device is running, or shows `title` with why not and returns false.
+    bool audioRunning(const juce::String& title);
+
+    // Stops playback and empties track 1, and reports a failure.
+    void deleteClip();
+
+    // Redraws track 1's waveform when a new clip finishes, and clears it while recording.
+    void updateWaveform(AudioRecorder::RecordingState recorderState);
 
     TimelineRuler timelineRuler;
     TrackLane track1{1};
@@ -62,6 +80,13 @@ class MainComponent : public juce::AudioAppComponent, private juce::Timer {
     // ----- Audio, needs declared here -----
     AudioRecorder audioRecorder;
     als::LoopPlayer loopPlayer; // plays the recorded clip
+
+    // The loudest output since the timer last read it, from 0 to 1. Audio thread writes, timer
+    // resets it.
+    std::atomic<float> playbackLevel{0.0f};
+
+    // The finished clip count the waveform was last drawn for. Message thread.
+    std::uint32_t waveformClip = 0;
 
     void playButtonClicked();
     void stopButtonClicked();

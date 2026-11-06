@@ -3,6 +3,8 @@
 #include "MainComponent.h"
 #include <juce_audio_utils/juce_audio_utils.h>
 
+#include <algorithm>
+
 // Pass sample rate to recorder and player and prepare buffers.
 void MainComponent::prepareToPlay(int /*samplesPerBlockExpected*/, double sampleRate) {
     audioRecorder.prepare(sampleRate);
@@ -36,6 +38,11 @@ void MainComponent::getNextAudioBlock(const juce::AudioSourceChannelInfo& buffer
                        : nullptr;
     loopPlayer.process(audioRecorder.clip(), audioRecorder.clipLength(), left, right,
                        static_cast<std::size_t>(bufferToFill.numSamples));
+
+    // Held at the loudest block until the timer reads it, so a short peak between ticks still
+    // shows. A reset between this load and store is overwritten, which only holds it one tick.
+    const float level = buffer->getMagnitude(bufferToFill.startSample, bufferToFill.numSamples);
+    playbackLevel.store(std::max(playbackLevel.load(), level));
 }
 
 void MainComponent::playButtonClicked() {
