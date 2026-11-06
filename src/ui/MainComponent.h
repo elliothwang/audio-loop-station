@@ -11,6 +11,7 @@
 #include "storage/LoopFile.h"
 #include <juce_audio_utils/juce_audio_utils.h>
 #include <juce_gui_basics/juce_gui_basics.h>
+#include "AudioCommandQueue.h"
 
 #include <atomic>
 #include <cstdint>
@@ -80,6 +81,7 @@ class MainComponent : public juce::AudioAppComponent, private juce::Timer {
     // ----- Audio, needs declared here -----
     AudioRecorder audioRecorder;
     als::LoopPlayer loopPlayer; // plays the recorded clip
+    als::AudioCommandQueue commandQueue; // UI will send commands to audio thread
 
     // The loudest output since the timer last read it, from 0 to 1. Audio thread writes, timer
     // resets it.
