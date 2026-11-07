@@ -17,6 +17,7 @@ class TrackBuffers {
     [[nodiscard]] int recordedLength(std::size_t track) const noexcept;
     [[nodiscard]] int appendSamples(std::size_t track, const float* inputSamples, int sampleCount) noexcept;   // Adds microphone samples to track
     [[nodiscard]] float sampleAt(std::size_t track, int position) const noexcept;   // Reads one sample
+    [[nodiscard]] const float* data(std::size_t track) const noexcept;
 
   private:
     std::array<juce::AudioBuffer<float>, kTrackCount> buffers;   // Array containing the four audio buffers

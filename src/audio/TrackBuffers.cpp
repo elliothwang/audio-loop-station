@@ -75,4 +75,12 @@ float TrackBuffers::sampleAt(std::size_t track, int position) const noexcept {
     return buffers[track].getSample(0, position);
 }
 
+const float* TrackBuffers::data(std::size_t track) const noexcept {
+    if (track >= kTrackCount || recordedLengths[track] == 0) {
+        return nullptr;
+    }
+
+    return buffers[track].getReadPointer(0);
+}
+
 } // namespace als

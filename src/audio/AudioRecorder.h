@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <juce_audio_utils/juce_audio_utils.h>
 #include <vector>
+#include "TrackBuffers.h"
 
 class AudioRecorder {
   public:
@@ -53,7 +54,7 @@ class AudioRecorder {
 
     // Buffer capacity in samples. This will be read when audio processing stopped.
     [[nodiscard]] int capacity() const noexcept {
-        return recordingBuffer.getNumSamples();
+        return tracks.capacity();
     }
 
   private:
@@ -67,10 +68,9 @@ class AudioRecorder {
     // std::atomic allows state to be read across threads and changed
     std::atomic<RecordingState> state{RecordingState::Idle};
 
-    juce::AudioBuffer<float> recordingBuffer; // hold recorded audio in memory
+    als::TrackBuffers tracks;
 
     double recordingSampleRate = 0.0; // store rate, needed to interpret and save recorded sample
-    int recordedSampleCount = 0;      // will record how much of buffer contains audio sample
     static constexpr int maximumRecordingSeconds = 60; // capacity limit, can change
 
     bool captureActive = false; // Used by audio thread
