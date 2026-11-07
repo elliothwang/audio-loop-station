@@ -62,4 +62,17 @@ int TrackBuffers::appendSamples(std::size_t track, const float* inputSamples, in
     return samplesToCopy;
 }
 
+float TrackBuffers::sampleAt(std::size_t track, int position) const noexcept {
+    if (track >= kTrackCount || position < 0) {
+        return 0.0f;
+    }
+
+    // Returns silence if past recorded audio samples
+    if (position >= recordedLengths[track]) {
+        return 0.0f;
+    }
+
+    return buffers[track].getSample(0, position);
+}
+
 } // namespace als
