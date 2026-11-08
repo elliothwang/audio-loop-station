@@ -74,6 +74,7 @@ std::optional<int> AudioRecorder::processInput(
                 expected,
                 RecordingState::Recording)) // Change state to Recording if still StartRequested
         {
+            activeTrack = 0;
             tracks.clearTrack(0);   // If state changed to recording, buffer write position reset
                                      // to 0 to overwrite previous
             captureActive = true;
@@ -101,7 +102,7 @@ std::optional<int> AudioRecorder::processInput(
         return std::nullopt;
     }
 
-        if (tracks.recordedLength(0) >= tracks.capacity()) {
+        if (tracks.recordedLength(activeTrack) >= tracks.capacity()) {
         captureActive = false;
         finishClip();
         return std::nullopt;
@@ -111,9 +112,9 @@ std::optional<int> AudioRecorder::processInput(
         return std::nullopt;
     }
 
-    const int copied = tracks.appendSamples(0, inputSamples, sampleCount);
+    const int copied = tracks.appendSamples(activeTrack, inputSamples, sampleCount);
 
-    if (copied > 0 && tracks.recordedLength(0) == tracks.capacity()) {
+    if (copied > 0 && tracks.recordedLength(activeTrack) == tracks.capacity()) {
         captureActive = false;
         finishClip();
     }
@@ -239,4 +240,31 @@ juce::Result AudioRecorder::copyRecording(std::vector<float>& samples, double& s
 
     state.store(RecordingState::Ready); // Update Recording state
     return juce::Result::ok();
+}
+
+bool AudioRecorder::beginControlledTake(std::size_t track) noexcept {
+    if (track >= als::kTrackCount || tracks.capacity() <= 0) {
+        return false;
+    }
+
+    auto expected = state.load();
+    if (expected != RecordingState::Idle && expected != RecordingState::Ready) {
+        return false;
+    }
+
+    if (!state.compare_exchange_strong(expected, RecordingState::Recording)) {
+        return false;
+    }
+
+    activeTrack = track;
+    tracks.clearTrack(activeTrack);
+    captureActive = true;
+    return true;
+}
+
+void AudioRecorder::finishControlledTake() noexcept {
+    if (state.load() == RecordingState::Recording) {
+        captureActive = false;
+        finishClip();
+    }
 }

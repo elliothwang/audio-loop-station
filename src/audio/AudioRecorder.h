@@ -63,6 +63,10 @@ class AudioRecorder {
     [[nodiscard]] int appendToTrack(std::size_t track, const float* inputSamples, int sampleCount) noexcept;
     [[nodiscard]] float sampleAt(std::size_t track, int position) const noexcept;
 
+    // Audio thread - Recorder claimed before writing to track selected.
+    [[nodiscard]] bool beginControlledTake(std::size_t track) noexcept;
+    void finishControlledTake() noexcept;
+
 
   private:
     // Marks the clip finished and Ready. Audio thread.
@@ -91,4 +95,7 @@ class AudioRecorder {
 
     // Goes up each time a clip finishes, read through finishedClips().
     std::atomic<std::uint32_t> clipCount{0};
+
+    // Which track will processInput write to. 
+    std::size_t activeTrack = 0;
 };

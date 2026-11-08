@@ -69,32 +69,16 @@ MainComponent::MainComponent() {
     setAudioChannels(1, 2); // 1 input for recording, 2 output channels for playback
 
     recordButton.onClick = [this]() {
-        const auto currentState = audioRecorder.getState();
-
-        switch (currentState) {
-        // If recorder state "Idle" or "Ready", stop playback and request new recording
-        case AudioRecorder::RecordingState::Idle:
-        case AudioRecorder::RecordingState::Ready:
-            loopPlayer.stop();
-            audioRecorder.requestStart();
-            break;
-
-        // If recorder state "StartRequested or Recording", request stop
-        case AudioRecorder::RecordingState::StartRequested:
-        case AudioRecorder::RecordingState::Recording:
-            audioRecorder.requestStop();
-            break;
-
-        // Do nothing while saving or loading
-        case AudioRecorder::RecordingState::Saving:
-        case AudioRecorder::RecordingState::Loading:
-            break;
-
-        // Do nothing while audio thread finsishes stopping
-        case AudioRecorder::RecordingState::StopRequested:
-            break;
+        if (!audioRunning("Record failed")) {
+            return;
         }
-    };
+
+        if (!commandQueue.push({als::Command::Record, 0})) {
+            juce::AlertWindow::showMessageBoxAsync(
+                juce::MessageBoxIconType::WarningIcon, "Record failed",
+                "The audio command queue is full. Try again.");
+            }
+        };
 
     track1.onDelete = [this]() { deleteClip(); };
 
@@ -128,12 +112,10 @@ void MainComponent::timerCallback() {
     playButton.setEnabled(hasClip && !playing);
     stopButton.setEnabled(playing);
 
-    // The clip is track 1 until more tracks can record. Playing is the state for a track that
-    // holds audio, so it shows whether or not playback is running.
-    const bool recording = recorderState == AudioRecorder::RecordingState::Recording;
-    track1.setState(recording ? als::TrackState::Recording
-                    : hasClip ? als::TrackState::Playing
-                              : als::TrackState::Empty);
+    track1.setState(controllerSnapshot.track(0));
+    track2.setState(controllerSnapshot.track(1));
+    track3.setState(controllerSnapshot.track(2));
+    track4.setState(controllerSnapshot.track(3));
 
     updateWaveform(recorderState);
     track1.setLevel(playbackLevel.exchange(0.0f));

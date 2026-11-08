@@ -37,18 +37,44 @@ void MainComponent::getNextAudioBlock(const juce::AudioSourceChannelInfo& buffer
                 break;
             }
 
-            const auto result = loopController->handle(
-                command.command, sampleClock.now(), command.track);
+                const auto previousTrack = loopController->recordingTrack();
+                auto next = *loopController;
+                const auto result = next.handle(command.command, sampleClock.now(), command.track);
+                const auto nextTrack = next.recordingTrack();
 
-            controllerSnapshot.publishResult(result);
+                if (!previousTrack && nextTrack && !audioRecorder.beginControlledTake(*nextTrack)) {
+                    controllerSnapshot.publishResult(als::Result::Ignored);
+                    continue;
+                }
+
+                *loopController = next;
+
+                if (previousTrack && !nextTrack) {
+                    if (result == als::Result::TakeTooShort) {
+                        audioRecorder.clearTrack(*previousTrack);
+                    }
+                    audioRecorder.finishControlledTake();
+                }
+
+                controllerSnapshot.publishResult(result);
         }
     }
 
+    // Calculate samples current take can capture
+    int inputSampleCount = bufferToFill.numSamples;
+
+    if (loopController) {
+        if (const auto end = loopController->takeEnd()) {
+            const auto remaining = std::max<std::int64_t>(0, *end - sampleClock.now());
+            inputSampleCount =
+                static_cast<int>(std::min<std::int64_t>(inputSampleCount, remaining));
+        }
+    }
     // Capture microphone input if recording active and copy into audioRecorder buffer using
     // processInput
     const auto changedLength = audioRecorder.processInput(
         buffer->getReadPointer(0, bufferToFill.startSample),
-        bufferToFill.numSamples);
+        inputSampleCount);
 
     if (changedLength.has_value()) {
         loopPlayer.stop();
@@ -85,9 +111,15 @@ void MainComponent::getNextAudioBlock(const juce::AudioSourceChannelInfo& buffer
     // Advance the shared clock according to numSmaples processed, this block's end time
     sampleClock.advance(bufferToFill.numSamples);
 
-    // Publish state for the UI to access
+    // Publish state for the UI to access by updating snapshot
     if (loopController) {
+        const auto previousTrack = loopController->recordingTrack();
         loopController->advance(sampleClock.now());
+
+        if (previousTrack && !loopController->recordingTrack()) {
+            audioRecorder.finishControlledTake();
+        }
+
         controllerSnapshot.publish(*loopController, sampleClock.now());
     }
 }
