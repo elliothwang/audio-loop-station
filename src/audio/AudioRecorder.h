@@ -1,13 +1,13 @@
 #pragma once
 
+#include "TrackBuffers.h"
+#include <array>
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <juce_audio_utils/juce_audio_utils.h>
-#include <vector>
-#include "TrackBuffers.h"
 #include <optional>
-#include <array>
+#include <vector>
 
 class AudioRecorder {
   public:
@@ -34,7 +34,8 @@ class AudioRecorder {
     [[nodiscard]] juce::Result copyRecording(std::vector<float>& samples, double& sampleRate);
 
     // UI thread to copy finished audio for waveforms of all four tracks
-    [[nodiscard]] bool copyWaveformTracks(std::array<std::vector<float>, als::kTrackCount>& samples, double& sampleRate);
+    [[nodiscard]] bool copyWaveformTracks(std::array<std::vector<float>, als::kTrackCount>& samples,
+                                          double& sampleRate);
 
     // Hands a saved clip to the audio thread, which copies it in as the finished clip at its next
     // block. Fails while recording, or if the clip is empty, too long, or at another sample rate.
@@ -65,13 +66,13 @@ class AudioRecorder {
     // Track storage operations. Audio thread only.
     void clearTrack(std::size_t track) noexcept;
     [[nodiscard]] bool tryDeleteTrack(std::size_t track) noexcept; // Returns false if recorder busy
-    [[nodiscard]] int appendToTrack(std::size_t track, const float* inputSamples, int sampleCount) noexcept;
+    [[nodiscard]] int appendToTrack(std::size_t track, const float* inputSamples,
+                                    int sampleCount) noexcept;
     [[nodiscard]] float sampleAt(std::size_t track, int position) const noexcept;
 
     // Audio thread - Recorder claimed before writing to track selected.
     [[nodiscard]] bool beginControlledTake(std::size_t track) noexcept;
     void finishControlledTake() noexcept;
-
 
   private:
     // Marks the clip finished and Ready. Audio thread.
@@ -101,6 +102,6 @@ class AudioRecorder {
     // Goes up each time a clip finishes, read through finishedClips().
     std::atomic<std::uint32_t> clipCount{0};
 
-    // Which track will processInput write to. 
+    // Which track will processInput write to.
     std::size_t activeTrack = 0;
 };

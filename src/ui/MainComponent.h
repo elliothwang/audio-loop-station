@@ -1,5 +1,6 @@
 #pragma once
 
+#include "AudioCommandQueue.h"
 #include "AudioRecorder.h"
 #include "DeviceFooter.h"
 #include "LoopStationLookAndFeel.h"
@@ -7,19 +8,18 @@
 #include "TimelineRuler.h"
 #include "TrackLane.h"
 #include "TransportBar.h"
+#include "core/ControllerSnapshot.h"
+#include "core/LoopController.h"
 #include "core/LoopPlayer.h"
+#include "core/SampleClock.h"
 #include "storage/LoopFile.h"
 #include <juce_audio_utils/juce_audio_utils.h>
 #include <juce_gui_basics/juce_gui_basics.h>
-#include "AudioCommandQueue.h"
-#include "core/ControllerSnapshot.h"
-#include "core/LoopController.h"
-#include "core/SampleClock.h"
 #include <optional>
 
+#include <array>
 #include <atomic>
 #include <cstdint>
-#include <array>
 
 // Declare main UI component, GUI behaviour in MainComponent.cpp
 class MainComponent : public juce::AudioAppComponent, private juce::Timer {
@@ -33,7 +33,8 @@ class MainComponent : public juce::AudioAppComponent, private juce::Timer {
     // AudioAppComponent functions defined in src/audio/MainComponentAudio.cpp
     void prepareToPlay(int samplesPerBlockExpected, double sampleRate) override;
     void releaseResources() override;
-    void getNextAudioBlock(const juce::AudioSourceChannelInfo& bufferToFill) override; // Audio Callback
+    void
+    getNextAudioBlock(const juce::AudioSourceChannelInfo& bufferToFill) override; // Audio Callback
 
   private:
     // Declared first so it outlives every component that draws with it.
@@ -84,12 +85,15 @@ class MainComponent : public juce::AudioAppComponent, private juce::Timer {
 
     // ----- Audio, needs declared here -----
     AudioRecorder audioRecorder;
-    als::LoopPlayer loopPlayer; // plays the recorded clip
-    als::AudioCommandQueue commandQueue; // UI will send commands to audio thread
-    als::SampleClock sampleClock;   // Clock to track processed samples
-    als::ControllerSnapshot controllerSnapshot;   // Snapshot will provide state for UI to access
-    std::optional<als::LoopController> loopController;   // Option allows controller to start out absent
-    std::array<std::atomic<std::int64_t>, als::kTrackCount> trackStartPositions{};   // Loop position where each track started, UI needs to read to align waveforms
+    als::LoopPlayer loopPlayer;                 // plays the recorded clip
+    als::AudioCommandQueue commandQueue;        // UI will send commands to audio thread
+    als::SampleClock sampleClock;               // Clock to track processed samples
+    als::ControllerSnapshot controllerSnapshot; // Snapshot will provide state for UI to access
+    std::optional<als::LoopController>
+        loopController; // Option allows controller to start out absent
+    std::array<std::atomic<std::int64_t>, als::kTrackCount>
+        trackStartPositions{}; // Loop position where each track started, UI needs to read to align
+                               // waveforms
 
     // The loudest output since the timer last read it, from 0 to 1. Audio thread writes, timer
     // resets it.

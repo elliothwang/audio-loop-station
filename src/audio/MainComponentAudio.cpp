@@ -11,8 +11,10 @@ void MainComponent::prepareToPlay(int /*samplesPerBlockExpected*/, double sample
     loopPlayer.prepare(sampleRate);
 
     // Construct loop controller once, and after recorder has allocated buffer
-    if (!loopController && audioRecorder.capacity() > 0){
-        loopController.emplace(1, static_cast<std::int64_t>(audioRecorder.capacity()));   // emplace constructs loop controller inside optional
+    if (!loopController && audioRecorder.capacity() > 0) {
+        loopController.emplace(
+            1, static_cast<std::int64_t>(
+                   audioRecorder.capacity())); // emplace constructs loop controller inside optional
     }
 }
 
@@ -37,45 +39,46 @@ void MainComponent::getNextAudioBlock(const juce::AudioSourceChannelInfo& buffer
                 break;
             }
 
-                const auto previousTrack = loopController->recordingTrack();
-                auto next = *loopController;
-                const auto result = next.handle(command.command, sampleClock.now(), command.track);
-                const auto nextTrack = next.recordingTrack();
+            const auto previousTrack = loopController->recordingTrack();
+            auto next = *loopController;
+            const auto result = next.handle(command.command, sampleClock.now(), command.track);
+            const auto nextTrack = next.recordingTrack();
 
-                if (!previousTrack && nextTrack && !audioRecorder.beginControlledTake(*nextTrack)) {
+            if (!previousTrack && nextTrack && !audioRecorder.beginControlledTake(*nextTrack)) {
+                controllerSnapshot.publishResult(als::Result::Ignored);
+                continue;
+            }
+
+            if (command.command == als::Command::DeleteTrack && result == als::Result::Accepted) {
+                // track marked as empty if can clear audio
+                // if recorder busy, skip delete and just leave as is
+                if (!audioRecorder.tryDeleteTrack(command.track)) {
                     controllerSnapshot.publishResult(als::Result::Ignored);
                     continue;
                 }
 
-                if (command.command == als::Command::DeleteTrack &&
-                    result == als::Result::Accepted) {
-                    // track marked as empty if can clear audio
-                    // if recorder busy, skip delete and just leave as is
-                    if (!audioRecorder.tryDeleteTrack(command.track)) {
-                        controllerSnapshot.publishResult(als::Result::Ignored);
-                        continue;
-                    }
+                trackStartPositions[command.track] = 0;
+            }
 
-                    trackStartPositions[command.track] = 0;
+            *loopController = next;
+
+            // New recording take, save loop position once
+            if (!previousTrack && nextTrack) {
+                const auto& loop = loopController->loop();
+                trackStartPositions[*nextTrack] =
+                    loop ? als::loopPosition(*loop, sampleClock.now())
+                         : 0; // If no loop, save 0 as start position. If loop, save track start
+                              // position within that loop.
+            }
+
+            if (previousTrack && !nextTrack) {
+                if (result == als::Result::TakeTooShort) {
+                    audioRecorder.clearTrack(*previousTrack);
                 }
+                audioRecorder.finishControlledTake();
+            }
 
-                *loopController = next;
-
-                // New recording take, save loop position once
-                if (!previousTrack && nextTrack) {
-                    const auto& loop = loopController->loop();
-                    trackStartPositions[*nextTrack] =
-                        loop ? als::loopPosition(*loop, sampleClock.now()) : 0;   // If no loop, save 0 as start position. If loop, save track start position within that loop.
-                    }
-
-                if (previousTrack && !nextTrack) {
-                    if (result == als::Result::TakeTooShort) {
-                        audioRecorder.clearTrack(*previousTrack);
-                    }
-                    audioRecorder.finishControlledTake();
-                }
-
-                controllerSnapshot.publishResult(result);
+            controllerSnapshot.publishResult(result);
         }
     }
 
@@ -92,8 +95,7 @@ void MainComponent::getNextAudioBlock(const juce::AudioSourceChannelInfo& buffer
     // Capture microphone input if recording active and copy into audioRecorder buffer using
     // processInput
     const auto changedLength = audioRecorder.processInput(
-        buffer->getReadPointer(0, bufferToFill.startSample),
-        inputSampleCount);
+        buffer->getReadPointer(0, bufferToFill.startSample), inputSampleCount);
 
     if (changedLength.has_value()) {
         loopPlayer.stop();
@@ -122,8 +124,8 @@ void MainComponent::getNextAudioBlock(const juce::AudioSourceChannelInfo& buffer
                        : nullptr;
 
     if (loopController) {
-        const auto blockStart = sampleClock.now();   // Sample # at start of this current audio block
-        auto timing = loopController->loop();   // Loop's starting time and length
+        const auto blockStart = sampleClock.now(); // Sample # at start of this current audio block
+        auto timing = loopController->loop();      // Loop's starting time and length
 
         // Handles case if 1st take fills buffer partway through block.
         if (!timing) {
@@ -137,8 +139,11 @@ void MainComponent::getNextAudioBlock(const juce::AudioSourceChannelInfo& buffer
         if (timing) {
             for (int i = 0; i < bufferToFill.numSamples; ++i) {
                 const auto now = blockStart + i;
-                const auto position = als::loopPosition(*timing, now);   // Converts shared clock time to position that will repeat each loop
-                float mixed = 0.0f;   // Start with silence but will add each track's audio part at instant
+                const auto position = als::loopPosition(
+                    *timing,
+                    now); // Converts shared clock time to position that will repeat each loop
+                float mixed =
+                    0.0f; // Start with silence but will add each track's audio part at instant
 
                 for (std::size_t track = 0; track < als::kTrackCount; ++track) {
                     // Skip muted track

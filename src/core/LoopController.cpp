@@ -196,7 +196,8 @@ std::optional<std::size_t> LoopController::firstEmptyTrack() const noexcept {
 }
 
 bool LoopController::loadSingleTrack(std::int64_t now, std::int64_t length) noexcept {
-    // Loads previously saved single track to track 1. Will likely need to update/remove once full loop saving enabled.S
+    // Loads previously saved single track to track 1. Will likely need to update/remove once full
+    // loop saving enabled.S
     if (length <= 0 || length > maximumTakeLength_) {
         return false;
     }
