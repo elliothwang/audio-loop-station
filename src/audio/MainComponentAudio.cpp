@@ -134,7 +134,10 @@ void MainComponent::getNextAudioBlock(const juce::AudioSourceChannelInfo& buffer
                         continue;
                     }
 
-                    auto index = position - trackStartPositions[track];   // Converts loop position to index in track's buffer.
+                    // Converts loop position to index in track's buffer.
+                    const auto takeStart = trackStartPositions[track].load();
+                    auto index = position - takeStart;
+
                     // Wrap negative index
                     if (index < 0) {
                         index += timing->length;

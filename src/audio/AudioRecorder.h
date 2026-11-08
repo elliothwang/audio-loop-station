@@ -7,6 +7,7 @@
 #include <vector>
 #include "TrackBuffers.h"
 #include <optional>
+#include <array>
 
 class AudioRecorder {
   public:
@@ -31,6 +32,9 @@ class AudioRecorder {
     // Copies the finished clip and its sample rate out of the recorder. Fails if a take is still
     // recording or nothing has been recorded.
     [[nodiscard]] juce::Result copyRecording(std::vector<float>& samples, double& sampleRate);
+
+    // UI thread to copy finished audio for waveforms of all four tracks
+    [[nodiscard]] bool copyWaveformTracks(std::array<std::vector<float>, als::kTrackCount>& samples, double& sampleRate);
 
     // Hands a saved clip to the audio thread, which copies it in as the finished clip at its next
     // block. Fails while recording, or if the clip is empty, too long, or at another sample rate.

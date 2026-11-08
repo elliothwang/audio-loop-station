@@ -3,6 +3,7 @@
 #include "SaveLoopComponent.h"
 
 #include <vector>
+#include <array>
 
 namespace {
 
@@ -136,26 +137,56 @@ void MainComponent::deleteClip() {
 }
 
 void MainComponent::updateWaveform(AudioRecorder::RecordingState recorderState) {
-    if (recorderState == AudioRecorder::RecordingState::Recording) {
-        track1.clearWaveform(); // the old clip is being replaced
-        return;
-    }
-    // A count rather than the state, since a load returns to Ready faster than the timer ticks.
     const std::uint32_t finished = audioRecorder.finishedClips();
-    if (finished == waveformClip || recorderState != AudioRecorder::RecordingState::Ready) {
+    const auto loopLength = controllerSnapshot.loopLength();
+
+    // Only redraw waveforms if audio changed or there is new loop length.
+    if (recorderState != AudioRecorder::RecordingState::Ready ||
+        (finished == waveformClip && loopLength == waveformLoopLength)) {
         return;
     }
-    waveformClip = finished;
-    std::vector<float> samples;
+
+    std::array<std::vector<float>, als::kTrackCount> samples;
     double sampleRate = 0.0;
-    if (audioRecorder.copyRecording(samples, sampleRate).failed()) {
-        track1.clearWaveform(); // a take stopped before it captured anything
-        return;
+
+    if (!audioRecorder.copyWaveformTracks(samples, sampleRate)) {
+        return; // UI not able to claim buffers to copy, recorder not in Ready state. Will try again.
     }
-    // The buffer points at the copied samples rather than copying them again.
-    float* channel = samples.data();
-    track1.setWaveform(juce::AudioBuffer<float>(&channel, 1, static_cast<int>(samples.size())),
-                       sampleRate);
+
+    waveformClip = finished;
+    waveformLoopLength = loopLength;
+
+    // Track lane matches track indices of recorder
+    const std::array<TrackLane*, als::kTrackCount> lanes{&track1, &track2, &track3, &track4};
+
+    for (std::size_t track = 0; track < lanes.size(); ++track) {
+        auto& clip = samples[track];
+
+        if (clip.empty()) {
+            lanes[track]->clearWaveform();
+            continue;
+        }
+
+                if (loopLength <= 0) {
+            lanes[track]->clearWaveform();
+            continue;
+        }
+
+        const auto length = static_cast<std::size_t>(loopLength);
+        const auto start = static_cast<std::size_t>(trackStartPositions[track].load());
+
+        // Start full loop of silence with samples set to 0.
+        std::vector<float> aligned(length, 0.0f);
+
+        for (std::size_t i = 0; i < clip.size() && i < length; ++i) {
+            // Place each sample where it plays in the shared loop with wrapping as needed. Start is when Record pressed for that track within the shared loop.
+            aligned[(start + i) % length] = clip[i];
+        }
+
+        // Setwaveform expects Juce buffer, wrap samples so no need to copy again.
+        float* channel = aligned.data();
+        lanes[track]->setWaveform(juce::AudioBuffer<float>(&channel, 1, static_cast<int>(aligned.size())), sampleRate);
+    }
 }
 
 void MainComponent::updateRecordButton(AudioRecorder::RecordingState recorderState) {

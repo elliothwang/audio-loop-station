@@ -170,6 +170,10 @@ std::optional<int> AudioRecorder::applyPendingClip() noexcept {
     tracks.clearTrack(0);
 
     if (!pendingClip.empty()) {
+        // Clear previous tracks if loading previously saved loop. TO update as existing functionality for saving only 1 track not whole loop.
+        for (std::size_t track = 1; track < als::kTrackCount; ++track) {
+            tracks.clearTrack(track);
+        }
         const int copied = tracks.appendSamples(
             0, pendingClip.data(), static_cast<int>(pendingClip.size()));
 
@@ -240,6 +244,35 @@ juce::Result AudioRecorder::copyRecording(std::vector<float>& samples, double& s
 
     state.store(RecordingState::Ready); // Update Recording state
     return juce::Result::ok();
+}
+
+bool AudioRecorder::copyWaveformTracks(
+    std::array<std::vector<float>, als::kTrackCount>& samples, double& sampleRate) {
+    auto expected = RecordingState::Ready;
+
+    // Protection for if copying, load or new recording can't claim buffers
+    if (!state.compare_exchange_strong(expected, RecordingState::Saving)) {
+        return false;
+    }
+
+    sampleRate = recordingSampleRate;
+
+    for (std::size_t track = 0; track < als::kTrackCount; ++track) {
+        const int length = tracks.recordedLength(track);
+
+        if (length == 0) {
+            samples[track].clear();
+            continue;
+        }
+
+        // Only copy recorded samples, don't need whole buffer
+        const float* first = tracks.data(track);
+        samples[track].assign(first, first + length);
+    }
+
+    // The UI has copies to create waveforms. Buffers not needed.
+    state.store(RecordingState::Ready);
+    return true;
 }
 
 bool AudioRecorder::beginControlledTake(std::size_t track) noexcept {

@@ -90,7 +90,7 @@ class MainComponent : public juce::AudioAppComponent, private juce::Timer {
     als::SampleClock sampleClock;   // Clock to track processed samples
     als::ControllerSnapshot controllerSnapshot;   // Snapshot will provide state for UI to access
     std::optional<als::LoopController> loopController;   // Option allows controller to start out absent
-    std::array<std::int64_t, als::kTrackCount> trackStartPositions{};   // Loop position where each track started
+    std::array<std::atomic<std::int64_t>, als::kTrackCount> trackStartPositions{};   // Loop position where each track started, UI needs to read to align waveforms
 
     // The loudest output since the timer last read it, from 0 to 1. Audio thread writes, timer
     // resets it.
@@ -98,6 +98,7 @@ class MainComponent : public juce::AudioAppComponent, private juce::Timer {
 
     // The finished clip count the waveform was last drawn for. Message thread.
     std::uint32_t waveformClip = 0;
+    std::int64_t waveformLoopLength = 0;
 
     void playButtonClicked();
     void stopButtonClicked();
