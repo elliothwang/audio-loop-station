@@ -49,6 +49,13 @@ void MainComponent::getNextAudioBlock(const juce::AudioSourceChannelInfo& buffer
 
                 *loopController = next;
 
+                // New recording take, save loop position once
+                if (!previousTrack && nextTrack) {
+                    const auto& loop = loopController->loop();
+                    trackStartPositions[*nextTrack] =
+                        loop ? als::loopPosition(*loop, sampleClock.now()) : 0;   // If no loop, save 0 as start position. If loop, save track start position within that loop.
+                    }
+
                 if (previousTrack && !nextTrack) {
                     if (result == als::Result::TakeTooShort) {
                         audioRecorder.clearTrack(*previousTrack);
@@ -81,6 +88,7 @@ void MainComponent::getNextAudioBlock(const juce::AudioSourceChannelInfo& buffer
 
         if (loopController) {
             if (*changedLength > 0) {
+                trackStartPositions[0] = 0;
                 const bool loaded =
                     loopController->loadSingleTrack(sampleClock.now(), *changedLength);
                 jassert(loaded);
@@ -100,8 +108,49 @@ void MainComponent::getNextAudioBlock(const juce::AudioSourceChannelInfo& buffer
     float* right = buffer->getNumChannels() > 1
                        ? buffer->getWritePointer(1, bufferToFill.startSample)
                        : nullptr;
-    loopPlayer.process(audioRecorder.clip(), audioRecorder.clipLength(), left, right,
-                       static_cast<std::size_t>(bufferToFill.numSamples));
+
+    if (loopController) {
+        const auto blockStart = sampleClock.now();   // Sample # at start of this current audio block
+        auto timing = loopController->loop();   // Loop's starting time and length
+
+        // Handles case if 1st take fills buffer partway through block.
+        if (!timing) {
+            const auto start = loopController->takeStart();
+            const auto end = loopController->takeEnd();
+            if (start && end && *end < blockStart + bufferToFill.numSamples) {
+                timing = als::LoopTiming{*start, *end - *start};
+            }
+        }
+
+        if (timing) {
+            for (int i = 0; i < bufferToFill.numSamples; ++i) {
+                const auto now = blockStart + i;
+                const auto position = als::loopPosition(*timing, now);   // Converts shared clock time to position that will repeat each loop
+                float mixed = 0.0f;   // Start with silence but will add each track's audio part at instant
+
+                for (std::size_t track = 0; track < als::kTrackCount; ++track) {
+                    // Skip muted track
+                    if (!loopController->audible(track, now)) {
+                        continue;
+                    }
+
+                    auto index = position - trackStartPositions[track];   // Converts loop position to index in track's buffer.
+                    // Wrap negative index
+                    if (index < 0) {
+                        index += timing->length;
+                    }
+                    // Add each track's contribution to mixed
+                    mixed += audioRecorder.sampleAt(track, static_cast<int>(index));
+                }
+
+                const float output = std::clamp(mixed, -1.0f, 1.0f);
+                left[i] = output;
+                if (right != nullptr) {
+                    right[i] = output;
+                }
+            }
+        }
+    }
 
     // Held at the loudest block until the timer reads it, so a short peak between ticks still
     // shows. A reset between this load and store is overwritten, which only holds it one tick.
@@ -125,9 +174,13 @@ void MainComponent::getNextAudioBlock(const juce::AudioSourceChannelInfo& buffer
 }
 
 void MainComponent::playButtonClicked() {
-    loopPlayer.play();
+    if (!commandQueue.push({als::Command::Play, 0})) {
+        DBG("Could not queue Play: audio command queue is full");
+    }
 }
 
 void MainComponent::stopButtonClicked() {
-    loopPlayer.stop();
+    if (!commandQueue.push({als::Command::Stop, 0})) {
+        DBG("Could not queue Stop: audio command queue is full");
+    }
 }

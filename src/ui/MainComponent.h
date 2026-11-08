@@ -19,6 +19,7 @@
 
 #include <atomic>
 #include <cstdint>
+#include <array>
 
 // Declare main UI component, GUI behaviour in MainComponent.cpp
 class MainComponent : public juce::AudioAppComponent, private juce::Timer {
@@ -89,6 +90,7 @@ class MainComponent : public juce::AudioAppComponent, private juce::Timer {
     als::SampleClock sampleClock;   // Clock to track processed samples
     als::ControllerSnapshot controllerSnapshot;   // Snapshot will provide state for UI to access
     std::optional<als::LoopController> loopController;   // Option allows controller to start out absent
+    std::array<std::int64_t, als::kTrackCount> trackStartPositions{};   // Loop position where each track started
 
     // The loudest output since the timer last read it, from 0 to 1. Audio thread writes, timer
     // resets it.

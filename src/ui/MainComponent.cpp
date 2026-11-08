@@ -106,11 +106,9 @@ void MainComponent::timerCallback() {
     const auto recorderState = audioRecorder.getState();
     updateRecordButton(recorderState);
 
-    // Play needs a finished clip, and the player only reports a length once there is one.
-    const bool hasClip = loopPlayer.length() > 0;
-    const bool playing = loopPlayer.playing();
-    playButton.setEnabled(hasClip && !playing);
-    stopButton.setEnabled(playing);
+    const auto transport = controllerSnapshot.transport();
+    playButton.setEnabled(transport == als::Transport::Stopped);   // Play button enabled if clip finished
+    stopButton.setEnabled(transport == als::Transport::Playing || transport == als::Transport::RecordingFirstTake);   // Stop available during playback or first take
 
     track1.setState(controllerSnapshot.track(0));
     track2.setState(controllerSnapshot.track(1));
@@ -208,11 +206,13 @@ void MainComponent::updateTimeline() {
     if (sampleRate <= 0.0) {
         return;
     }
-    const double length = static_cast<double>(loopPlayer.length()) / sampleRate;
-    const double position = static_cast<double>(loopPlayer.position()) / sampleRate;
+    const bool playing = controllerSnapshot.transport() == als::Transport::Playing;
+    const double length = static_cast<double>(controllerSnapshot.loopLength()) / sampleRate;
+    const double position = playing ? static_cast<double>(controllerSnapshot.position()) / sampleRate : 0.0;
+
     transportBar.setTime(position, length);
     timelineRuler.setLength(length);
-    playhead.setFraction(loopPlayer.playing() && length > 0.0 ? position / length : -1.0);
+    playhead.setFraction(playing && length > 0.0 ? position / length : -1.0);
 }
 
 void MainComponent::paint(juce::Graphics& graphics) {
