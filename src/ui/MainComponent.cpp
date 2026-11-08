@@ -81,7 +81,10 @@ MainComponent::MainComponent() {
             }
         };
 
-    track1.onDelete = [this]() { deleteClip(); };
+    track1.onDelete = [this]() { deleteClip(0); };
+    track2.onDelete = [this]() { deleteClip(1); };
+    track3.onDelete = [this]() { deleteClip(2); };
+    track4.onDelete = [this]() { deleteClip(3); };
 
     // Audio button 'clicked' functions defined in src/audio/MainComponentAudio.cpp
     playButton.onClick = [this] { playButtonClicked(); };
@@ -122,18 +125,24 @@ void MainComponent::timerCallback() {
     updateTimeline();
 }
 
-void MainComponent::deleteClip() {
+void MainComponent::deleteClip(std::size_t track) {
     if (!audioRunning("Delete failed")) {
         return;
     }
-    loopPlayer.stop();
-    if (const juce::Result result = audioRecorder.clearClip(); result.failed()) {
-        juce::AlertWindow::showMessageBoxAsync(juce::MessageBoxIconType::WarningIcon,
-                                               "Delete failed", result.getErrorMessage());
+
+    if (audioRecorder.getState() == AudioRecorder::RecordingState::Recording) {
+        juce::AlertWindow::showMessageBoxAsync(
+            juce::MessageBoxIconType::WarningIcon, "Delete failed",
+            "Finish recording before deleting a track.");
         return;
     }
-    // The saved loop on disk is untouched, but the app no longer holds it.
-    transportBar.setLoopName(TransportBar::kUntitledLoop);
+
+    // The audio thread will update the controller and clear the matching buffer. Ctonroller determines if playback should continue or not.
+    if (!commandQueue.push({als::Command::DeleteTrack, track})) {
+        juce::AlertWindow::showMessageBoxAsync(
+            juce::MessageBoxIconType::WarningIcon, "Delete failed",
+            "The audio command queue is full.");
+    }
 }
 
 void MainComponent::updateWaveform(AudioRecorder::RecordingState recorderState) {

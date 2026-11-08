@@ -64,6 +64,7 @@ class AudioRecorder {
 
     // Track storage operations. Audio thread only.
     void clearTrack(std::size_t track) noexcept;
+    [[nodiscard]] bool tryDeleteTrack(std::size_t track) noexcept; // Returns false if recorder busy
     [[nodiscard]] int appendToTrack(std::size_t track, const float* inputSamples, int sampleCount) noexcept;
     [[nodiscard]] float sampleAt(std::size_t track, int position) const noexcept;
 

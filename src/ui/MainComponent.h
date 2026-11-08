@@ -33,8 +33,7 @@ class MainComponent : public juce::AudioAppComponent, private juce::Timer {
     // AudioAppComponent functions defined in src/audio/MainComponentAudio.cpp
     void prepareToPlay(int samplesPerBlockExpected, double sampleRate) override;
     void releaseResources() override;
-    void
-    getNextAudioBlock(const juce::AudioSourceChannelInfo& bufferToFill) override; // Audio Callback
+    void getNextAudioBlock(const juce::AudioSourceChannelInfo& bufferToFill) override; // Audio Callback
 
   private:
     // Declared first so it outlives every component that draws with it.
@@ -69,8 +68,8 @@ class MainComponent : public juce::AudioAppComponent, private juce::Timer {
     // Returns true if an audio device is running, or shows `title` with why not and returns false.
     bool audioRunning(const juce::String& title);
 
-    // Stops playback and empties track 1, and reports a failure.
-    void deleteClip();
+    // Stops playback and empties selected track, and reports a failure.
+    void deleteClip(std::size_t track);
 
     // Redraws track 1's waveform when a new clip finishes, and clears it while recording.
     void updateWaveform(AudioRecorder::RecordingState recorderState);

@@ -47,6 +47,18 @@ void MainComponent::getNextAudioBlock(const juce::AudioSourceChannelInfo& buffer
                     continue;
                 }
 
+                if (command.command == als::Command::DeleteTrack &&
+                    result == als::Result::Accepted) {
+                    // track marked as empty if can clear audio
+                    // if recorder busy, skip delete and just leave as is
+                    if (!audioRecorder.tryDeleteTrack(command.track)) {
+                        controllerSnapshot.publishResult(als::Result::Ignored);
+                        continue;
+                    }
+
+                    trackStartPositions[command.track] = 0;
+                }
+
                 *loopController = next;
 
                 // New recording take, save loop position once

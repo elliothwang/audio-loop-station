@@ -126,6 +126,24 @@ void AudioRecorder::clearTrack(std::size_t track) noexcept {
     tracks.clearTrack(track);
 }
 
+bool AudioRecorder::tryDeleteTrack(std::size_t track) noexcept {
+    if (track >= als::kTrackCount) {
+        return false;
+    }
+
+    auto expected = RecordingState::Ready;
+
+    // Only delete if recorder Ready, then switch to Loading.  UI can't copy samples while track being cleared/deleted
+    if (!state.compare_exchange_strong(expected, RecordingState::Loading)) {
+        return false;
+    }
+
+    tracks.clearTrack(track);
+
+    finishClip();   // UI clears waveform, returns recorder to Ready
+    return true;
+}
+
 int AudioRecorder::appendToTrack(std::size_t track, const float* inputSamples, int sampleCount) noexcept {
     // Write samples of microphone to track selected by controller
     return tracks.appendSamples(track, inputSamples, sampleCount);
