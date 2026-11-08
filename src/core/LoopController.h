@@ -37,6 +37,9 @@ class LoopController {
     // DeleteTrack. It has no default so a delete always names its track.
     [[nodiscard]] Result handle(Command command, std::int64_t now, std::size_t track) noexcept;
 
+    // Replace with previously saved, loaded clip to track 1 at beginning.
+    [[nodiscard]] bool loadSingleTrack(std::int64_t now, std::int64_t length) noexcept;
+
     // Call once per block. Ends a take that has reached its full length.
     void advance(std::int64_t now) noexcept;
 

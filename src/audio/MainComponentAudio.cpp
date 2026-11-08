@@ -27,11 +27,44 @@ void MainComponent::getNextAudioBlock(const juce::AudioSourceChannelInfo& buffer
     if (buffer == nullptr || buffer->getNumChannels() == 0 || bufferToFill.numSamples <= 0) {
         return;
     }
+    // Apply UI commands pending in queue at block's start time
+    if (loopController) {
+        als::AudioCommand command;
+
+        // Prevent indefinite delay of command handling
+        for (int i = 0; i < 64; ++i) {
+            if (!commandQueue.pop(command)) {
+                break;
+            }
+
+            const auto result = loopController->handle(
+                command.command, sampleClock.now(), command.track);
+
+            controllerSnapshot.publishResult(result);
+        }
+    }
 
     // Capture microphone input if recording active and copy into audioRecorder buffer using
     // processInput
-    audioRecorder.processInput(buffer->getReadPointer(0, bufferToFill.startSample),
-                               bufferToFill.numSamples);
+    const auto changedLength = audioRecorder.processInput(
+        buffer->getReadPointer(0, bufferToFill.startSample),
+        bufferToFill.numSamples);
+
+    if (changedLength.has_value()) {
+        loopPlayer.stop();
+
+        if (loopController) {
+            if (*changedLength > 0) {
+                const bool loaded =
+                    loopController->loadSingleTrack(sampleClock.now(), *changedLength);
+                jassert(loaded);
+                static_cast<void>(loaded);
+            } else {
+                static_cast<void>(
+                    loopController->handle(als::Command::DeleteTrack, sampleClock.now(), 0));
+            }
+        }
+    }
 
     // The input shares this buffer, so clear it before writing output. Prevents microphone input
     // going direct through to output speakers.
@@ -48,6 +81,15 @@ void MainComponent::getNextAudioBlock(const juce::AudioSourceChannelInfo& buffer
     // shows. A reset between this load and store is overwritten, which only holds it one tick.
     const float level = buffer->getMagnitude(bufferToFill.startSample, bufferToFill.numSamples);
     playbackLevel.store(std::max(playbackLevel.load(), level));
+
+    // Advance the shared clock according to numSmaples processed, this block's end time
+    sampleClock.advance(bufferToFill.numSamples);
+
+    // Publish state for the UI to access
+    if (loopController) {
+        loopController->advance(sampleClock.now());
+        controllerSnapshot.publish(*loopController, sampleClock.now());
+    }
 }
 
 void MainComponent::playButtonClicked() {

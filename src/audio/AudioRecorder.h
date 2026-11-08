@@ -6,6 +6,7 @@
 #include <juce_audio_utils/juce_audio_utils.h>
 #include <vector>
 #include "TrackBuffers.h"
+#include <optional>
 
 class AudioRecorder {
   public:
@@ -25,7 +26,7 @@ class AudioRecorder {
     void prepare(double sampleRate); // allocate buffer amount, kept on a restart at the same rate
     bool requestStart();             // returned boolean will indicate if request accepted
     bool requestStop();
-    void processInput(const float* inputSamples, int sampleCount);
+    std::optional<int> processInput(const float* inputSamples, int sampleCount);
 
     // Copies the finished clip and its sample rate out of the recorder. Fails if a take is still
     // recording or nothing has been recorded.
@@ -57,6 +58,12 @@ class AudioRecorder {
         return tracks.capacity();
     }
 
+    // Track storage operations. Audio thread only.
+    void clearTrack(std::size_t track) noexcept;
+    [[nodiscard]] int appendToTrack(std::size_t track, const float* inputSamples, int sampleCount) noexcept;
+    [[nodiscard]] float sampleAt(std::size_t track, int position) const noexcept;
+
+
   private:
     // Marks the clip finished and Ready. Audio thread.
     void finishClip() noexcept;
@@ -76,7 +83,7 @@ class AudioRecorder {
     bool captureActive = false; // Used by audio thread
 
     // Copies a pending clip into the buffer and finishes it. Audio thread, while Loading.
-    void applyPendingClip() noexcept;
+    std::optional<int> applyPendingClip() noexcept;
 
     // Set by handOverClip() while Loading, read by the audio thread once clipPending is true.
     std::vector<float> pendingClip;

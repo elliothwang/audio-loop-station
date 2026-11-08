@@ -55,7 +55,7 @@ bool AudioRecorder::requestStop() {
     return false;
 }
 
-void AudioRecorder::processInput(
+std::optional<int> AudioRecorder::processInput(
     const float* inputSamples,
     int sampleCount) // point to microphone samples, how many samples available
 {
@@ -63,8 +63,7 @@ void AudioRecorder::processInput(
 
     // Loads and deletes are applied here, so the buffer is only written on the audio thread.
     if (currentState == RecordingState::Loading) {
-        applyPendingClip();
-        return;
+        return applyPendingClip();
     }
 
     if (currentState == RecordingState::StartRequested) // Check if recording requested from UI
@@ -94,22 +93,22 @@ void AudioRecorder::processInput(
 
         captureActive = false;
         finishClip(); // State to Ready
-        return;
+        return std::nullopt;
     }
 
     if (currentState != RecordingState::Recording) // Ignore Stop if not recording
     {
-        return;
+        return std::nullopt;
     }
 
         if (tracks.recordedLength(0) >= tracks.capacity()) {
         captureActive = false;
         finishClip();
-        return;
+        return std::nullopt;
     }
 
     if (inputSamples == nullptr || sampleCount <= 0) {
-        return;
+        return std::nullopt;
     }
 
     const int copied = tracks.appendSamples(0, inputSamples, sampleCount);
@@ -118,6 +117,22 @@ void AudioRecorder::processInput(
         captureActive = false;
         finishClip();
     }
+    return std::nullopt;
+}
+
+void AudioRecorder::clearTrack(std::size_t track) noexcept {
+    // Prepares next empty track for new recording
+    tracks.clearTrack(track);
+}
+
+int AudioRecorder::appendToTrack(std::size_t track, const float* inputSamples, int sampleCount) noexcept {
+    // Write samples of microphone to track selected by controller
+    return tracks.appendSamples(track, inputSamples, sampleCount);
+}
+
+float AudioRecorder::sampleAt(std::size_t track, int position) const noexcept {
+    // Reads track's audio
+    return tracks.sampleAt(track, position);
 }
 
 void AudioRecorder::finishClip() noexcept {
@@ -146,9 +161,9 @@ std::size_t AudioRecorder::clipLength() const noexcept {
     return finished ? static_cast<std::size_t>(tracks.recordedLength(0)) : 0;
 }
 
-void AudioRecorder::applyPendingClip() noexcept {
+std::optional<int> AudioRecorder::applyPendingClip() noexcept {
     if (!clipPending.load(std::memory_order_acquire)) {
-        return;
+        return std::nullopt;
     }
 
     tracks.clearTrack(0);
@@ -163,6 +178,7 @@ void AudioRecorder::applyPendingClip() noexcept {
 
     clipPending.store(false, std::memory_order_relaxed);
     finishClip();
+    return tracks.recordedLength(0);
 }
 
 juce::Result AudioRecorder::loadClip(const std::vector<float>& samples, double sampleRate) {

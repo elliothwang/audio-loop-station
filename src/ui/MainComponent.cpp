@@ -285,8 +285,6 @@ void MainComponent::loadLoop(const juce::File& folder) {
                                                result.getErrorMessage());
         return;
     }
-    // Stopped only once the load is accepted, so a refused loop leaves playback running.
-    loopPlayer.stop();
     transportBar.setLoopName(folder.getFileName());
 }
 
