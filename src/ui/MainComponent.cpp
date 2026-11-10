@@ -284,7 +284,8 @@ void MainComponent::resized() {
 
 void MainComponent::saveLoop(const juce::String& name) {
     als::SavedLoop loop;
-    juce::Result result = audioRecorder.copyRecording(loop.samples, loop.sampleRate);
+    juce::Result result = audioRecorder.copyRecording(loop.tracks[0].samples, loop.sampleRate);
+    loop.length = static_cast<std::int64_t>(loop.tracks[0].samples.size());
     const juce::File folder = als::loopFolder(als::defaultLoopsFolder(), name);
     if (result.wasOk()) {
         result = als::saveLoop(loop, folder);
@@ -307,7 +308,7 @@ void MainComponent::loadLoop(const juce::File& folder) {
     als::SavedLoop loop;
     juce::Result result = als::loadLoop(folder, loop);
     if (result.wasOk()) {
-        result = audioRecorder.loadClip(loop.samples, loop.sampleRate);
+        result = audioRecorder.loadClip(loop.tracks[0].samples, loop.sampleRate);
     }
 
     if (result.failed()) {
