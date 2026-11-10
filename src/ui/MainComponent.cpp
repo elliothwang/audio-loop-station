@@ -3,6 +3,7 @@
 #include "SaveLoopComponent.h"
 
 #include <array>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -151,6 +152,12 @@ void MainComponent::deleteClip(std::size_t track) {
 
 void MainComponent::updateWaveform(AudioRecorder::RecordingState recorderState) {
     const std::uint32_t finished = audioRecorder.finishedClips();
+
+    // Waits for the block that finished the clip to publish its starts and loop length, so the
+    // waveforms aren't drawn and cached at the old positions.
+    if (publishedClips.load(std::memory_order_acquire) != finished) {
+        return;
+    }
     const auto loopLength = controllerSnapshot.loopLength();
 
     // Only redraw waveforms if audio changed or there is new loop length.
@@ -162,7 +169,7 @@ void MainComponent::updateWaveform(AudioRecorder::RecordingState recorderState) 
     std::array<std::vector<float>, als::kTrackCount> samples;
     double sampleRate = 0.0;
 
-    if (!audioRecorder.copyWaveformTracks(samples, sampleRate)) {
+    if (!audioRecorder.copyTracks(samples, sampleRate)) {
         return; // UI not able to claim buffers to copy, recorder not in Ready state. Will try
                 // again.
     }
@@ -284,8 +291,7 @@ void MainComponent::resized() {
 
 void MainComponent::saveLoop(const juce::String& name) {
     als::SavedLoop loop;
-    juce::Result result = audioRecorder.copyRecording(loop.tracks[0].samples, loop.sampleRate);
-    loop.length = static_cast<std::int64_t>(loop.tracks[0].samples.size());
+    juce::Result result = copyLoop(loop);
     const juce::File folder = als::loopFolder(als::defaultLoopsFolder(), name);
     if (result.wasOk()) {
         result = als::saveLoop(loop, folder);
@@ -301,6 +307,28 @@ void MainComponent::saveLoop(const juce::String& name) {
     }
 }
 
+juce::Result MainComponent::copyLoop(als::SavedLoop& loop) {
+    // Every take, load, and delete finishes a clip. A published count that has caught up means the
+    // starts and loop length match the tracks, and an unchanged count means none changed mid-copy.
+    const std::uint32_t before = audioRecorder.finishedClips();
+    if (publishedClips.load(std::memory_order_acquire) != before) {
+        return juce::Result::fail("The loop changed while it was being saved. Try saving again.");
+    }
+    std::array<std::vector<float>, als::kTrackCount> samples;
+    if (!audioRecorder.copyTracks(samples, loop.sampleRate)) {
+        return juce::Result::fail("Finish recording before saving.");
+    }
+    loop.length = controllerSnapshot.loopLength();
+    for (std::size_t track = 0; track < als::kTrackCount; ++track) {
+        loop.tracks[track].samples = std::move(samples[track]);
+        loop.tracks[track].start = trackStartPositions[track].load();
+    }
+    if (audioRecorder.finishedClips() != before) {
+        return juce::Result::fail("The loop changed while it was being saved. Try saving again.");
+    }
+    return juce::Result::ok();
+}
+
 void MainComponent::loadLoop(const juce::File& folder) {
     if (!audioRunning("Load failed")) {
         return;
@@ -308,7 +336,13 @@ void MainComponent::loadLoop(const juce::File& folder) {
     als::SavedLoop loop;
     juce::Result result = als::loadLoop(folder, loop);
     if (result.wasOk()) {
-        result = audioRecorder.loadClip(loop.tracks[0].samples, loop.sampleRate);
+        std::array<std::vector<float>, als::kTrackCount> samples;
+        std::array<std::int64_t, als::kTrackCount> starts{};
+        for (std::size_t track = 0; track < als::kTrackCount; ++track) {
+            samples[track] = std::move(loop.tracks[track].samples);
+            starts[track] = loop.tracks[track].start;
+        }
+        result = audioRecorder.loadTracks(std::move(samples), starts, loop.length, loop.sampleRate);
     }
 
     if (result.failed()) {
