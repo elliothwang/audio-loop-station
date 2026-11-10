@@ -95,9 +95,9 @@ class MainComponent : public juce::AudioAppComponent, private juce::Timer {
         trackStartPositions{}; // Loop position where each track started, UI needs to read to align
                                // waveforms
 
-    // The loudest output since the timer last read it, from 0 to 1. Audio thread writes, timer
-    // resets it.
-    std::atomic<float> playbackLevel{0.0f};
+    // Loudest output per track since the timer last read it, from 0 to 1. Audio thread writes,
+    // timer resets it.
+    std::array<std::atomic<float>, als::kTrackCount> trackPeaks{};
 
     // The finished clip count the waveform was last drawn for. Message thread.
     std::uint32_t waveformClip = 0;

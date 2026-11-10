@@ -118,13 +118,13 @@ void MainComponent::timerCallback() {
         transport ==
             als::Transport::RecordingFirstTake); // Stop available during playback or first take
 
-    track1.setState(controllerSnapshot.track(0));
-    track2.setState(controllerSnapshot.track(1));
-    track3.setState(controllerSnapshot.track(2));
-    track4.setState(controllerSnapshot.track(3));
+    const std::array<TrackLane*, als::kTrackCount> lanes{&track1, &track2, &track3, &track4};
+    for (std::size_t i = 0; i < lanes.size(); ++i) {
+        lanes[i]->setState(controllerSnapshot.track(i));
+        lanes[i]->setLevel(trackPeaks[i].exchange(0.0f));
+    }
 
     updateWaveform(recorderState);
-    track1.setLevel(playbackLevel.exchange(0.0f));
 
     updateTimeline();
 }
