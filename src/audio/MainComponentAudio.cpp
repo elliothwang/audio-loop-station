@@ -94,23 +94,21 @@ void MainComponent::getNextAudioBlock(const juce::AudioSourceChannelInfo& buffer
     }
     // Capture microphone input if recording active and copy into audioRecorder buffer using
     // processInput
-    const auto changedLength = audioRecorder.processInput(
+    const auto loaded = audioRecorder.processInput(
         buffer->getReadPointer(0, bufferToFill.startSample), inputSampleCount);
 
-    if (changedLength.has_value()) {
+    // A load replaced every track this block, so each take's start and the loop come from it.
+    if (loaded.has_value()) {
         loopPlayer.stop();
 
+        for (std::size_t track = 0; track < als::kTrackCount; ++track) {
+            trackStartPositions[track] = loaded->starts[track];
+        }
         if (loopController) {
-            if (*changedLength > 0) {
-                trackStartPositions[0] = 0;
-                const bool loaded =
-                    loopController->loadSingleTrack(sampleClock.now(), *changedLength);
-                jassert(loaded);
-                static_cast<void>(loaded);
-            } else {
-                static_cast<void>(
-                    loopController->handle(als::Command::DeleteTrack, sampleClock.now(), 0));
-            }
+            const bool restarted =
+                loopController->loadTracks(sampleClock.now(), loaded->loopLength, loaded->hasAudio);
+            jassert(restarted);
+            static_cast<void>(restarted);
         }
     }
 
@@ -198,6 +196,10 @@ void MainComponent::getNextAudioBlock(const juce::AudioSourceChannelInfo& buffer
 
         controllerSnapshot.publish(*loopController, sampleClock.now());
     }
+
+    // Release pairs with the acquire in copyLoop() and updateWaveform(), so a UI that sees this
+    // count also sees the take starts and snapshot this block wrote for it.
+    publishedClips.store(audioRecorder.finishedClips(), std::memory_order_release);
 }
 
 void MainComponent::playButtonClicked() {
