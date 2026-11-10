@@ -2,6 +2,7 @@
 #include "LoadLoopComponent.h"
 #include "SaveLoopComponent.h"
 
+#include <array>
 #include <vector>
 
 namespace {
@@ -69,34 +70,21 @@ MainComponent::MainComponent() {
     setAudioChannels(1, 2); // 1 input for recording, 2 output channels for playback
 
     recordButton.onClick = [this]() {
-        const auto currentState = audioRecorder.getState();
+        if (!audioRunning("Record failed")) {
+            return;
+        }
 
-        switch (currentState) {
-        // If recorder state "Idle" or "Ready", stop playback and request new recording
-        case AudioRecorder::RecordingState::Idle:
-        case AudioRecorder::RecordingState::Ready:
-            loopPlayer.stop();
-            audioRecorder.requestStart();
-            break;
-
-        // If recorder state "StartRequested or Recording", request stop
-        case AudioRecorder::RecordingState::StartRequested:
-        case AudioRecorder::RecordingState::Recording:
-            audioRecorder.requestStop();
-            break;
-
-        // Do nothing while saving or loading
-        case AudioRecorder::RecordingState::Saving:
-        case AudioRecorder::RecordingState::Loading:
-            break;
-
-        // Do nothing while audio thread finsishes stopping
-        case AudioRecorder::RecordingState::StopRequested:
-            break;
+        if (!commandQueue.push({als::Command::Record, 0})) {
+            juce::AlertWindow::showMessageBoxAsync(juce::MessageBoxIconType::WarningIcon,
+                                                   "Record failed",
+                                                   "The audio command queue is full. Try again.");
         }
     };
 
-    track1.onDelete = [this]() { deleteClip(); };
+    track1.onDelete = [this]() { deleteClip(0); };
+    track2.onDelete = [this]() { deleteClip(1); };
+    track3.onDelete = [this]() { deleteClip(2); };
+    track4.onDelete = [this]() { deleteClip(3); };
 
     // Audio button 'clicked' functions defined in src/audio/MainComponentAudio.cpp
     playButton.onClick = [this] { playButtonClicked(); };
@@ -122,18 +110,18 @@ void MainComponent::timerCallback() {
     const auto recorderState = audioRecorder.getState();
     updateRecordButton(recorderState);
 
-    // Play needs a finished clip, and the player only reports a length once there is one.
-    const bool hasClip = loopPlayer.length() > 0;
-    const bool playing = loopPlayer.playing();
-    playButton.setEnabled(hasClip && !playing);
-    stopButton.setEnabled(playing);
+    const auto transport = controllerSnapshot.transport();
+    playButton.setEnabled(transport ==
+                          als::Transport::Stopped); // Play button enabled if clip finished
+    stopButton.setEnabled(
+        transport == als::Transport::Playing ||
+        transport ==
+            als::Transport::RecordingFirstTake); // Stop available during playback or first take
 
-    // The clip is track 1 until more tracks can record. Playing is the state for a track that
-    // holds audio, so it shows whether or not playback is running.
-    const bool recording = recorderState == AudioRecorder::RecordingState::Recording;
-    track1.setState(recording ? als::TrackState::Recording
-                    : hasClip ? als::TrackState::Playing
-                              : als::TrackState::Empty);
+    track1.setState(controllerSnapshot.track(0));
+    track2.setState(controllerSnapshot.track(1));
+    track3.setState(controllerSnapshot.track(2));
+    track4.setState(controllerSnapshot.track(3));
 
     updateWaveform(recorderState);
     track1.setLevel(playbackLevel.exchange(0.0f));
@@ -141,41 +129,80 @@ void MainComponent::timerCallback() {
     updateTimeline();
 }
 
-void MainComponent::deleteClip() {
+void MainComponent::deleteClip(std::size_t track) {
     if (!audioRunning("Delete failed")) {
         return;
     }
-    loopPlayer.stop();
-    if (const juce::Result result = audioRecorder.clearClip(); result.failed()) {
+
+    if (audioRecorder.getState() == AudioRecorder::RecordingState::Recording) {
         juce::AlertWindow::showMessageBoxAsync(juce::MessageBoxIconType::WarningIcon,
-                                               "Delete failed", result.getErrorMessage());
+                                               "Delete failed",
+                                               "Finish recording before deleting a track.");
         return;
     }
-    // The saved loop on disk is untouched, but the app no longer holds it.
-    transportBar.setLoopName(TransportBar::kUntitledLoop);
+
+    // The audio thread will update the controller and clear the matching buffer. Ctonroller
+    // determines if playback should continue or not.
+    if (!commandQueue.push({als::Command::DeleteTrack, track})) {
+        juce::AlertWindow::showMessageBoxAsync(juce::MessageBoxIconType::WarningIcon,
+                                               "Delete failed", "The audio command queue is full.");
+    }
 }
 
 void MainComponent::updateWaveform(AudioRecorder::RecordingState recorderState) {
-    if (recorderState == AudioRecorder::RecordingState::Recording) {
-        track1.clearWaveform(); // the old clip is being replaced
-        return;
-    }
-    // A count rather than the state, since a load returns to Ready faster than the timer ticks.
     const std::uint32_t finished = audioRecorder.finishedClips();
-    if (finished == waveformClip || recorderState != AudioRecorder::RecordingState::Ready) {
+    const auto loopLength = controllerSnapshot.loopLength();
+
+    // Only redraw waveforms if audio changed or there is new loop length.
+    if (recorderState != AudioRecorder::RecordingState::Ready ||
+        (finished == waveformClip && loopLength == waveformLoopLength)) {
         return;
     }
-    waveformClip = finished;
-    std::vector<float> samples;
+
+    std::array<std::vector<float>, als::kTrackCount> samples;
     double sampleRate = 0.0;
-    if (audioRecorder.copyRecording(samples, sampleRate).failed()) {
-        track1.clearWaveform(); // a take stopped before it captured anything
-        return;
+
+    if (!audioRecorder.copyWaveformTracks(samples, sampleRate)) {
+        return; // UI not able to claim buffers to copy, recorder not in Ready state. Will try
+                // again.
     }
-    // The buffer points at the copied samples rather than copying them again.
-    float* channel = samples.data();
-    track1.setWaveform(juce::AudioBuffer<float>(&channel, 1, static_cast<int>(samples.size())),
-                       sampleRate);
+
+    waveformClip = finished;
+    waveformLoopLength = loopLength;
+
+    // Track lane matches track indices of recorder
+    const std::array<TrackLane*, als::kTrackCount> lanes{&track1, &track2, &track3, &track4};
+
+    for (std::size_t track = 0; track < lanes.size(); ++track) {
+        auto& clip = samples[track];
+
+        if (clip.empty()) {
+            lanes[track]->clearWaveform();
+            continue;
+        }
+
+        if (loopLength <= 0) {
+            lanes[track]->clearWaveform();
+            continue;
+        }
+
+        const auto length = static_cast<std::size_t>(loopLength);
+        const auto start = static_cast<std::size_t>(trackStartPositions[track].load());
+
+        // Start full loop of silence with samples set to 0.
+        std::vector<float> aligned(length, 0.0f);
+
+        for (std::size_t i = 0; i < clip.size() && i < length; ++i) {
+            // Place each sample where it plays in the shared loop with wrapping as needed. Start is
+            // when Record pressed for that track within the shared loop.
+            aligned[(start + i) % length] = clip[i];
+        }
+
+        // Setwaveform expects Juce buffer, wrap samples so no need to copy again.
+        float* channel = aligned.data();
+        lanes[track]->setWaveform(
+            juce::AudioBuffer<float>(&channel, 1, static_cast<int>(aligned.size())), sampleRate);
+    }
 }
 
 void MainComponent::updateRecordButton(AudioRecorder::RecordingState recorderState) {
@@ -226,11 +253,14 @@ void MainComponent::updateTimeline() {
     if (sampleRate <= 0.0) {
         return;
     }
-    const double length = static_cast<double>(loopPlayer.length()) / sampleRate;
-    const double position = static_cast<double>(loopPlayer.position()) / sampleRate;
+    const bool playing = controllerSnapshot.transport() == als::Transport::Playing;
+    const double length = static_cast<double>(controllerSnapshot.loopLength()) / sampleRate;
+    const double position =
+        playing ? static_cast<double>(controllerSnapshot.position()) / sampleRate : 0.0;
+
     transportBar.setTime(position, length);
     timelineRuler.setLength(length);
-    playhead.setFraction(loopPlayer.playing() && length > 0.0 ? position / length : -1.0);
+    playhead.setFraction(playing && length > 0.0 ? position / length : -1.0);
 }
 
 void MainComponent::paint(juce::Graphics& graphics) {
@@ -285,8 +315,6 @@ void MainComponent::loadLoop(const juce::File& folder) {
                                                result.getErrorMessage());
         return;
     }
-    // Stopped only once the load is accepted, so a refused loop leaves playback running.
-    loopPlayer.stop();
     transportBar.setLoopName(folder.getFileName());
 }
 

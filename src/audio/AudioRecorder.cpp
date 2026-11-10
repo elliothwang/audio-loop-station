@@ -6,28 +6,27 @@
 
 void AudioRecorder::prepare(double sampleRate) {
     // A device restart at the same rate keeps the clip, so only reset when the rate changes.
-    if (sampleRate == recordingSampleRate && recordingBuffer.getNumSamples() > 0) {
+    if (sampleRate == recordingSampleRate && tracks.capacity() > 0) {
         return;
     }
 
     recordingSampleRate = 0.0;
-    recordedSampleCount = 0;
+    captureActive = false;
     clipPending.store(false); // a pending clip no longer matches the new rate
     state.store(RecordingState::Idle);
+
+    // Clear existing storage with sample rate changes
+    tracks.prepare(0);
 
     const double capacity = sampleRate * maximumRecordingSeconds;
 
     // Check sample rate valid and will fit an int
     if (!std::isfinite(sampleRate) || sampleRate <= 0.0 ||
         capacity > std::numeric_limits<int>::max()) {
-        recordingBuffer.setSize(0, 0);
         return;
     }
 
-    recordingBuffer.setSize(
-        1, static_cast<int>(std::ceil(capacity))); // Allocate space in audio buffer, round up.
-    recordingBuffer.clear(); // fill buffer storage with zeros representing silence
-
+    tracks.prepare(static_cast<int>(std::ceil(capacity)));
     recordingSampleRate = sampleRate; // store sample rate
 }
 
@@ -56,7 +55,7 @@ bool AudioRecorder::requestStop() {
     return false;
 }
 
-void AudioRecorder::processInput(
+std::optional<int> AudioRecorder::processInput(
     const float* inputSamples,
     int sampleCount) // point to microphone samples, how many samples available
 {
@@ -64,8 +63,7 @@ void AudioRecorder::processInput(
 
     // Loads and deletes are applied here, so the buffer is only written on the audio thread.
     if (currentState == RecordingState::Loading) {
-        applyPendingClip();
-        return;
+        return applyPendingClip();
     }
 
     if (currentState == RecordingState::StartRequested) // Check if recording requested from UI
@@ -76,8 +74,9 @@ void AudioRecorder::processInput(
                 expected,
                 RecordingState::Recording)) // Change state to Recording if still StartRequested
         {
-            recordedSampleCount = 0; // If state changed to recording, buffer write position reset
-                                     // to 0 to overwrite previous
+            activeTrack = 0;
+            tracks.clearTrack(0); // If state changed to recording, buffer write position reset
+                                  // to 0 to overwrite previous
             captureActive = true;
         }
 
@@ -90,51 +89,71 @@ void AudioRecorder::processInput(
         if (!captureActive) // Check if audio capture actually started. Case where user presses
                             // Record then Stop rapidly.
         {
-            recordedSampleCount = 0;
+            tracks.clearTrack(0);
         }
 
         captureActive = false;
         finishClip(); // State to Ready
-        return;
+        return std::nullopt;
     }
 
     if (currentState != RecordingState::Recording) // Ignore Stop if not recording
     {
-        return;
+        return std::nullopt;
     }
 
-    const int remaining = recordingBuffer.getNumSamples() -
-                          recordedSampleCount; // Calculate remaining buffer capacity
-
-    if (remaining <=
-        0) // If buffer full, finish recording take and exit to avoid writing beyond capacity
-    {
+    if (tracks.recordedLength(activeTrack) >= tracks.capacity()) {
         captureActive = false;
         finishClip();
-        return;
+        return std::nullopt;
     }
 
-    if (inputSamples == nullptr ||
-        sampleCount <=
-            0) // If samples pointer not pointing to audio data, or if no samples to copy, exit
-    {
-        return;
+    if (inputSamples == nullptr || sampleCount <= 0) {
+        return std::nullopt;
     }
 
-    const int samplesToCopy =
-        std::min(sampleCount, remaining); // Must limit sample amount to copy to remaining space
+    const int copied = tracks.appendSamples(activeTrack, inputSamples, sampleCount);
 
-    recordingBuffer.copyFrom(0, recordedSampleCount, inputSamples,
-                             samplesToCopy); // Copy inputSamples from microphone to channel 0
-
-    recordedSampleCount +=
-        samplesToCopy; // Advance write position based on number of samples copied
-
-    // Finish if recording buffer full
-    if (recordedSampleCount == recordingBuffer.getNumSamples()) {
+    if (copied > 0 && tracks.recordedLength(activeTrack) == tracks.capacity()) {
         captureActive = false;
-        finishClip(); // Update state to Ready
+        finishClip();
     }
+    return std::nullopt;
+}
+
+void AudioRecorder::clearTrack(std::size_t track) noexcept {
+    // Prepares next empty track for new recording
+    tracks.clearTrack(track);
+}
+
+bool AudioRecorder::tryDeleteTrack(std::size_t track) noexcept {
+    if (track >= als::kTrackCount) {
+        return false;
+    }
+
+    auto expected = RecordingState::Ready;
+
+    // Only delete if recorder Ready, then switch to Loading.  UI can't copy samples while track
+    // being cleared/deleted
+    if (!state.compare_exchange_strong(expected, RecordingState::Loading)) {
+        return false;
+    }
+
+    tracks.clearTrack(track);
+
+    finishClip(); // UI clears waveform, returns recorder to Ready
+    return true;
+}
+
+int AudioRecorder::appendToTrack(std::size_t track, const float* inputSamples,
+                                 int sampleCount) noexcept {
+    // Write samples of microphone to track selected by controller
+    return tracks.appendSamples(track, inputSamples, sampleCount);
+}
+
+float AudioRecorder::sampleAt(std::size_t track, int position) const noexcept {
+    // Reads track's audio
+    return tracks.sampleAt(track, position);
 }
 
 void AudioRecorder::finishClip() noexcept {
@@ -153,27 +172,39 @@ AudioRecorder::RecordingState AudioRecorder::getState() const noexcept {
 }
 
 const float* AudioRecorder::clip() const noexcept {
-    return recordingBuffer.getNumSamples() > 0 ? recordingBuffer.getReadPointer(0) : nullptr;
+    return tracks.data(0);
 }
 
 std::size_t AudioRecorder::clipLength() const noexcept {
     // Saving only reads the clip, so it can still play while it's copied.
     const auto current = state.load();
     const bool finished = current == RecordingState::Ready || current == RecordingState::Saving;
-    return finished ? static_cast<std::size_t>(recordedSampleCount) : 0;
+    return finished ? static_cast<std::size_t>(tracks.recordedLength(0)) : 0;
 }
 
-void AudioRecorder::applyPendingClip() noexcept {
+std::optional<int> AudioRecorder::applyPendingClip() noexcept {
     if (!clipPending.load(std::memory_order_acquire)) {
-        return;
+        return std::nullopt;
     }
-    // An empty clip clears the track, and the buffer may have no channel to write to.
+
+    tracks.clearTrack(0);
+
     if (!pendingClip.empty()) {
-        std::copy(pendingClip.begin(), pendingClip.end(), recordingBuffer.getWritePointer(0));
+        // Clear previous tracks if loading previously saved loop. TO update as existing
+        // functionality for saving only 1 track not whole loop.
+        for (std::size_t track = 1; track < als::kTrackCount; ++track) {
+            tracks.clearTrack(track);
+        }
+        const int copied =
+            tracks.appendSamples(0, pendingClip.data(), static_cast<int>(pendingClip.size()));
+
+        jassert(copied == static_cast<int>(pendingClip.size()));
+        static_cast<void>(copied);
     }
-    recordedSampleCount = static_cast<int>(pendingClip.size());
+
     clipPending.store(false, std::memory_order_relaxed);
     finishClip();
+    return tracks.recordedLength(0);
 }
 
 juce::Result AudioRecorder::loadClip(const std::vector<float>& samples, double sampleRate) {
@@ -184,8 +215,7 @@ juce::Result AudioRecorder::loadClip(const std::vector<float>& samples, double s
                                   " Hz, but the audio device runs at " +
                                   juce::String(juce::roundToInt(recordingSampleRate)) + " Hz.");
     }
-    if (samples.empty() ||
-        samples.size() > static_cast<std::size_t>(recordingBuffer.getNumSamples())) {
+    if (samples.empty() || samples.size() > static_cast<std::size_t>(tracks.capacity())) {
         return juce::Result::fail("The loop is empty or longer than the recorder can hold.");
     }
 
@@ -220,16 +250,74 @@ juce::Result AudioRecorder::copyRecording(std::vector<float>& samples, double& s
         return juce::Result::fail("Finish recording before saving.");
     }
 
+    const int recordedSampleCount = tracks.recordedLength(0);
+
     // Check actual clip to copy
     if (recordedSampleCount <= 0 || recordingSampleRate <= 0.0) {
         state.store(RecordingState::Ready);
         return juce::Result::fail("There is no recorded audio to save.");
     }
 
-    const float* recorded = recordingBuffer.getReadPointer(0);
+    const float* recorded = tracks.data(0);
     samples.assign(recorded, recorded + recordedSampleCount);
     sampleRate = recordingSampleRate;
 
     state.store(RecordingState::Ready); // Update Recording state
     return juce::Result::ok();
+}
+
+bool AudioRecorder::copyWaveformTracks(std::array<std::vector<float>, als::kTrackCount>& samples,
+                                       double& sampleRate) {
+    auto expected = RecordingState::Ready;
+
+    // Protection for if copying, load or new recording can't claim buffers
+    if (!state.compare_exchange_strong(expected, RecordingState::Saving)) {
+        return false;
+    }
+
+    sampleRate = recordingSampleRate;
+
+    for (std::size_t track = 0; track < als::kTrackCount; ++track) {
+        const int length = tracks.recordedLength(track);
+
+        if (length == 0) {
+            samples[track].clear();
+            continue;
+        }
+
+        // Only copy recorded samples, don't need whole buffer
+        const float* first = tracks.data(track);
+        samples[track].assign(first, first + length);
+    }
+
+    // The UI has copies to create waveforms. Buffers not needed.
+    state.store(RecordingState::Ready);
+    return true;
+}
+
+bool AudioRecorder::beginControlledTake(std::size_t track) noexcept {
+    if (track >= als::kTrackCount || tracks.capacity() <= 0) {
+        return false;
+    }
+
+    auto expected = state.load();
+    if (expected != RecordingState::Idle && expected != RecordingState::Ready) {
+        return false;
+    }
+
+    if (!state.compare_exchange_strong(expected, RecordingState::Recording)) {
+        return false;
+    }
+
+    activeTrack = track;
+    tracks.clearTrack(activeTrack);
+    captureActive = true;
+    return true;
+}
+
+void AudioRecorder::finishControlledTake() noexcept {
+    if (state.load() == RecordingState::Recording) {
+        captureActive = false;
+        finishClip();
+    }
 }

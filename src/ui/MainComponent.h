@@ -1,5 +1,6 @@
 #pragma once
 
+#include "AudioCommandQueue.h"
 #include "AudioRecorder.h"
 #include "DeviceFooter.h"
 #include "LoopStationLookAndFeel.h"
@@ -7,11 +8,16 @@
 #include "TimelineRuler.h"
 #include "TrackLane.h"
 #include "TransportBar.h"
+#include "core/ControllerSnapshot.h"
+#include "core/LoopController.h"
 #include "core/LoopPlayer.h"
+#include "core/SampleClock.h"
 #include "storage/LoopFile.h"
 #include <juce_audio_utils/juce_audio_utils.h>
 #include <juce_gui_basics/juce_gui_basics.h>
+#include <optional>
 
+#include <array>
 #include <atomic>
 #include <cstdint>
 
@@ -63,8 +69,8 @@ class MainComponent : public juce::AudioAppComponent, private juce::Timer {
     // Returns true if an audio device is running, or shows `title` with why not and returns false.
     bool audioRunning(const juce::String& title);
 
-    // Stops playback and empties track 1, and reports a failure.
-    void deleteClip();
+    // Stops playback and empties selected track, and reports a failure.
+    void deleteClip(std::size_t track);
 
     // Redraws track 1's waveform when a new clip finishes, and clears it while recording.
     void updateWaveform(AudioRecorder::RecordingState recorderState);
@@ -79,7 +85,15 @@ class MainComponent : public juce::AudioAppComponent, private juce::Timer {
 
     // ----- Audio, needs declared here -----
     AudioRecorder audioRecorder;
-    als::LoopPlayer loopPlayer; // plays the recorded clip
+    als::LoopPlayer loopPlayer;                 // plays the recorded clip
+    als::AudioCommandQueue commandQueue;        // UI will send commands to audio thread
+    als::SampleClock sampleClock;               // Clock to track processed samples
+    als::ControllerSnapshot controllerSnapshot; // Snapshot will provide state for UI to access
+    std::optional<als::LoopController>
+        loopController; // Option allows controller to start out absent
+    std::array<std::atomic<std::int64_t>, als::kTrackCount>
+        trackStartPositions{}; // Loop position where each track started, UI needs to read to align
+                               // waveforms
 
     // The loudest output since the timer last read it, from 0 to 1. Audio thread writes, timer
     // resets it.
@@ -87,6 +101,7 @@ class MainComponent : public juce::AudioAppComponent, private juce::Timer {
 
     // The finished clip count the waveform was last drawn for. Message thread.
     std::uint32_t waveformClip = 0;
+    std::int64_t waveformLoopLength = 0;
 
     void playButtonClicked();
     void stopButtonClicked();

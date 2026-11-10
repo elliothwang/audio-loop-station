@@ -1,9 +1,12 @@
 #pragma once
 
+#include "TrackBuffers.h"
+#include <array>
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <juce_audio_utils/juce_audio_utils.h>
+#include <optional>
 #include <vector>
 
 class AudioRecorder {
@@ -24,11 +27,15 @@ class AudioRecorder {
     void prepare(double sampleRate); // allocate buffer amount, kept on a restart at the same rate
     bool requestStart();             // returned boolean will indicate if request accepted
     bool requestStop();
-    void processInput(const float* inputSamples, int sampleCount);
+    std::optional<int> processInput(const float* inputSamples, int sampleCount);
 
     // Copies the finished clip and its sample rate out of the recorder. Fails if a take is still
     // recording or nothing has been recorded.
     [[nodiscard]] juce::Result copyRecording(std::vector<float>& samples, double& sampleRate);
+
+    // UI thread to copy finished audio for waveforms of all four tracks
+    [[nodiscard]] bool copyWaveformTracks(std::array<std::vector<float>, als::kTrackCount>& samples,
+                                          double& sampleRate);
 
     // Hands a saved clip to the audio thread, which copies it in as the finished clip at its next
     // block. Fails while recording, or if the clip is empty, too long, or at another sample rate.
@@ -51,6 +58,22 @@ class AudioRecorder {
     // Audio thread only.
     [[nodiscard]] std::size_t clipLength() const noexcept;
 
+    // Buffer capacity in samples. This will be read when audio processing stopped.
+    [[nodiscard]] int capacity() const noexcept {
+        return tracks.capacity();
+    }
+
+    // Track storage operations. Audio thread only.
+    void clearTrack(std::size_t track) noexcept;
+    [[nodiscard]] bool tryDeleteTrack(std::size_t track) noexcept; // Returns false if recorder busy
+    [[nodiscard]] int appendToTrack(std::size_t track, const float* inputSamples,
+                                    int sampleCount) noexcept;
+    [[nodiscard]] float sampleAt(std::size_t track, int position) const noexcept;
+
+    // Audio thread - Recorder claimed before writing to track selected.
+    [[nodiscard]] bool beginControlledTake(std::size_t track) noexcept;
+    void finishControlledTake() noexcept;
+
   private:
     // Marks the clip finished and Ready. Audio thread.
     void finishClip() noexcept;
@@ -62,16 +85,15 @@ class AudioRecorder {
     // std::atomic allows state to be read across threads and changed
     std::atomic<RecordingState> state{RecordingState::Idle};
 
-    juce::AudioBuffer<float> recordingBuffer; // hold recorded audio in memory
+    als::TrackBuffers tracks;
 
     double recordingSampleRate = 0.0; // store rate, needed to interpret and save recorded sample
-    int recordedSampleCount = 0;      // will record how much of buffer contains audio sample
     static constexpr int maximumRecordingSeconds = 60; // capacity limit, can change
 
     bool captureActive = false; // Used by audio thread
 
     // Copies a pending clip into the buffer and finishes it. Audio thread, while Loading.
-    void applyPendingClip() noexcept;
+    std::optional<int> applyPendingClip() noexcept;
 
     // Set by handOverClip() while Loading, read by the audio thread once clipPending is true.
     std::vector<float> pendingClip;
@@ -79,4 +101,7 @@ class AudioRecorder {
 
     // Goes up each time a clip finishes, read through finishedClips().
     std::atomic<std::uint32_t> clipCount{0};
+
+    // Which track will processInput write to.
+    std::size_t activeTrack = 0;
 };

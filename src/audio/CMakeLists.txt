@@ -2,6 +2,9 @@ add_library(als_audio STATIC
     MainComponentAudio.cpp
     AudioRecorder.cpp
     AudioRecorder.h
+    AudioCommandQueue.h
+    TrackBuffers.cpp
+    TrackBuffers.h
     )
 
 target_include_directories(als_audio PUBLIC

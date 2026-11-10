@@ -7,7 +7,9 @@ FetchContent_MakeAvailable(Catch2)
 
 add_executable(als_tests test_smoke.cpp test_sample_clock.cpp test_loop_timing.cpp
                          test_loop_controller.cpp test_loop_file.cpp
-                         test_loop_playback.cpp test_loop_player.cpp test_audio_recorder.cpp)
+                         test_loop_playback.cpp test_loop_player.cpp test_audio_recorder.cpp
+                         test_audio_command_queue.cpp
+                         test_track_buffers.cpp)
 target_link_libraries(als_tests PRIVATE als_core als_storage als_audio Catch2::Catch2WithMain
                                         als_warnings)
 
