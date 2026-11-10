@@ -137,6 +137,8 @@ void MainComponent::getNextAudioBlock(const juce::AudioSourceChannelInfo& buffer
         }
 
         if (timing) {
+            std::array<float, als::kTrackCount>
+                blockTrackPeaks{}; // holds loudest sample of each track per block
             for (int i = 0; i < bufferToFill.numSamples; ++i) {
                 const auto now = blockStart + i;
                 const auto position = als::loopPosition(
@@ -159,8 +161,11 @@ void MainComponent::getNextAudioBlock(const juce::AudioSourceChannelInfo& buffer
                     if (index < 0) {
                         index += timing->length;
                     }
-                    // Add each track's contribution to mixed
-                    mixed += audioRecorder.sampleAt(track, static_cast<int>(index));
+
+                    // Add each track's contribution to mixed & track it's peak sample
+                    const float sample = audioRecorder.sampleAt(track, static_cast<int>(index));
+                    blockTrackPeaks[track] = std::max(blockTrackPeaks[track], std::abs(sample));
+                    mixed += sample;
                 }
 
                 const float output = std::clamp(mixed, -1.0f, 1.0f);
@@ -169,13 +174,15 @@ void MainComponent::getNextAudioBlock(const juce::AudioSourceChannelInfo& buffer
                     right[i] = output;
                 }
             }
+
+            // Held at the loudest block until the timer reads it, so a short peak between ticks
+            // still shows. A reset between this load and store is overwritten, which only holds it
+            // one tick.
+            for (size_t i = 0; i < als::kTrackCount; i++) {
+                trackPeaks[i].store(std::max(trackPeaks[i].load(), blockTrackPeaks[i]));
+            }
         }
     }
-
-    // Held at the loudest block until the timer reads it, so a short peak between ticks still
-    // shows. A reset between this load and store is overwritten, which only holds it one tick.
-    const float level = buffer->getMagnitude(bufferToFill.startSample, bufferToFill.numSamples);
-    playbackLevel.store(std::max(playbackLevel.load(), level));
 
     // Advance the shared clock according to numSmaples processed, this block's end time
     sampleClock.advance(bufferToFill.numSamples);
