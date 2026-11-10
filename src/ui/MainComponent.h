@@ -3,6 +3,7 @@
 #include "AudioCommandQueue.h"
 #include "AudioRecorder.h"
 #include "DeviceFooter.h"
+#include "LoadLoopComponent.h"
 #include "LoopStationLookAndFeel.h"
 #include "Playhead.h"
 #include "TimelineRuler.h"
@@ -68,8 +69,12 @@ class MainComponent : public juce::AudioAppComponent, private juce::Timer {
     // load, or delete finishes during the copy. Message thread.
     [[nodiscard]] juce::Result copyLoop(als::SavedLoop& loop);
 
-    // Loads the loop in `folder` in place of every track, and reports a failure.
+    // Loads the loop in `folder` in place of every track and closes the saved loops panel, or
+    // reports a failure and leaves the panel open.
     void loadLoop(const juce::File& folder);
+
+    // Opens the saved loops panel with a fresh list, or closes it, and lays the window out again.
+    void showLoopsPanel(bool show);
 
     // Returns true if an audio device is running, or shows `title` with why not and returns false.
     bool audioRunning(const juce::String& title);
@@ -87,6 +92,7 @@ class MainComponent : public juce::AudioAppComponent, private juce::Timer {
     TrackLane track4{4};
     Playhead playhead; // after the lanes, so it draws over them
     DeviceFooter deviceFooter{deviceManager};
+    LoadLoopComponent loopsPanel{[this](const juce::File& folder) { loadLoop(folder); }};
 
     // ----- Audio, needs declared here -----
     AudioRecorder audioRecorder;

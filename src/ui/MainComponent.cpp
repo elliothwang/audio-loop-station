@@ -1,5 +1,4 @@
 #include "MainComponent.h"
-#include "LoadLoopComponent.h"
 #include "SaveLoopComponent.h"
 
 #include <array>
@@ -12,6 +11,8 @@ constexpr int kHeaderHeight = 76; // [px]
 constexpr int kRulerHeight = 28;  // [px]
 constexpr int kLaneHeight = 118;  // [px]
 constexpr int kFooterHeight = 36; // [px]
+
+constexpr int kLoopsPanelWidth = 260; // [px], beside the lanes while open
 
 } // namespace
 
@@ -48,22 +49,13 @@ MainComponent::MainComponent() {
             .launchAsync(); // Function can open the dialog box without waiting for user to close.
     };
 
-    // Load previously save loop Dialog Box Handler
-    loadLoopButton.onClick = [this]() {
-        juce::DialogWindow::LaunchOptions options;
-
-        options.content.setOwned(
-            new LoadLoopComponent(als::listLoops(als::defaultLoopsFolder()),
-                                  [this](const juce::File& folder) { loadLoop(folder); }));
-        options.dialogTitle = "Load Loop";
-        options.dialogBackgroundColour = palette::header;
-        options.componentToCentreAround = this;
-        options.escapeKeyTriggersCloseButton = true;
-        options.useNativeTitleBar = true;
-        options.resizable = false;
-
-        options.launchAsync();
-    };
+    // Load opens and closes the saved loops panel, which starts closed so the lanes get the width.
+    addChildComponent(loopsPanel);
+    loadLoopButton.setColour(juce::TextButton::buttonOnColourId, palette::controlBorder);
+    // Light like the loop name, where other toggled buttons use dark text.
+    loadLoopButton.setColour(juce::TextButton::textColourOnId, palette::text);
+    loadLoopButton.onClick = [this]() { showLoopsPanel(!loopsPanel.isVisible()); };
+    showLoopsPanel(false); // gives the button its closed text and tooltip
 
     setSize(1280, kHeaderHeight + kRulerHeight + 4 * kLaneHeight + kFooterHeight);
 
@@ -281,6 +273,9 @@ void MainComponent::resized() {
     transportBar.setBounds(area.removeFromTop(kHeaderHeight));
 
     deviceFooter.setBounds(area.removeFromBottom(kFooterHeight));
+    if (loopsPanel.isVisible()) {
+        loopsPanel.setBounds(area.removeFromRight(kLoopsPanelWidth));
+    }
 
     timelineRuler.setBounds(area.removeFromTop(kRulerHeight));
     for (TrackLane* lane : {&track1, &track2, &track3, &track4}) {
@@ -302,9 +297,27 @@ void MainComponent::saveLoop(const juce::String& name) {
                                                result.getErrorMessage());
     } else {
         transportBar.setLoopName(folder.getFileName());
+        if (loopsPanel.isVisible()) {
+            showLoopsPanel(true); // lists the new loop
+        }
         juce::AlertWindow::showMessageBoxAsync(juce::MessageBoxIconType::InfoIcon, "Loop saved",
                                                folder.getFullPathName());
     }
+}
+
+void MainComponent::showLoopsPanel(bool show) {
+    // Read from disk each time it opens, so loops saved since the last look are listed.
+    if (show) {
+        loopsPanel.setLoops(als::listLoops(als::defaultLoopsFolder()));
+    }
+    loopsPanel.setVisible(show);
+    loadLoopButton.setToggleState(show, juce::dontSendNotification);
+
+    // While open, Load becomes an X, so it's clear the same button closes the panel.
+    loadLoopButton.setButtonText(show ? "X" : "Load");
+    loadLoopButton.setTitle(show ? "Close saved loops" : "Load");
+    loadLoopButton.setTooltip(show ? "Close saved loops" : "Show saved loops");
+    resized();
 }
 
 juce::Result MainComponent::copyLoop(als::SavedLoop& loop) {
@@ -351,6 +364,7 @@ void MainComponent::loadLoop(const juce::File& folder) {
         return;
     }
     transportBar.setLoopName(folder.getFileName());
+    showLoopsPanel(false); // only once loaded, so after a failure another loop can be picked
 }
 
 bool MainComponent::audioRunning(const juce::String& title) {
