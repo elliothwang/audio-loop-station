@@ -79,6 +79,13 @@ MainComponent::MainComponent() {
     track3.onDelete = [this]() { deleteClip(2); };
     track4.onDelete = [this]() { deleteClip(3); };
 
+    // The mixer eases each track toward its lane's volume and pan.
+    const std::array<TrackLane*, als::kTrackCount> lanes{&track1, &track2, &track3, &track4};
+    for (std::size_t track = 0; track < lanes.size(); ++track) {
+        lanes[track]->onVolumeChange = [this, track](float gain) { trackVolumes[track] = gain; };
+        lanes[track]->onPanChange = [this, track](float pan) { trackPans[track] = pan; };
+    }
+
     // Audio button 'clicked' functions defined in src/audio/MainComponentAudio.cpp
     playButton.onClick = [this] { playButtonClicked(); };
     playButton.setEnabled(false); // is enabled once a clip is recorded

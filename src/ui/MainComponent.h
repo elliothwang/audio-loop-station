@@ -110,6 +110,14 @@ class MainComponent : public juce::AudioAppComponent, private juce::Timer {
     // timer resets it.
     std::array<std::atomic<float>, als::kTrackCount> trackPeaks{};
 
+    // Each track's volume gain from 0 to 1, starting at full like the lanes' sliders. The UI
+    // writes, the audio thread reads.
+    std::array<std::atomic<float>, als::kTrackCount> trackVolumes{1.0f, 1.0f, 1.0f, 1.0f};
+
+    // Each track's pan from -1 for full left to 1 for full right, starting at centre. The UI
+    // writes, the audio thread reads.
+    std::array<std::atomic<float>, als::kTrackCount> trackPans{};
+
     // The finished clip count as of the last snapshot publish. Until it matches finishedClips(),
     // the take starts and loop length for the newest clip may not be written yet. Audio thread
     // writes.

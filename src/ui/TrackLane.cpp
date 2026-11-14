@@ -56,6 +56,11 @@ TrackLane::TrackLane(int trackNumber)
     };
     volumeSlider.updateText(); // the text box was filled before the dB format was set
     volumeSlider.setTitle("Track " + juce::String(trackNumber) + " volume");
+    volumeSlider.onValueChange = [this]() {
+        if (onVolumeChange) {
+            onVolumeChange(static_cast<float>(volumeSlider.getValue()));
+        }
+    };
 
     // When toggled on, mute turns yellow and reverse turns blue.
     muteButton.setClickingTogglesState(true);
@@ -82,7 +87,12 @@ TrackLane::TrackLane(int trackNumber)
     panSlider.setDoubleClickReturnValue(true, 0.0);
     panSlider.setTextBoxStyle(juce::Slider::NoTextBox, true, 0, 0);
     panSlider.setTitle("Track " + juce::String(trackNumber) + " pan");
-    panSlider.onValueChange = [this]() { updatePanLabel(); };
+    panSlider.onValueChange = [this]() {
+        updatePanLabel();
+        if (onPanChange) {
+            onPanChange(static_cast<float>(panSlider.getValue()));
+        }
+    };
     panLabel.setJustificationType(juce::Justification::centred);
     styleCaption(panLabel, {});
     updatePanLabel();

@@ -43,6 +43,12 @@ class TrackLane : public juce::Component {
     // Called when the lane's delete button is clicked.
     std::function<void()> onDelete;
 
+    // Called with the new gain, from 0 to 1, when the volume slider moves.
+    std::function<void(float)> onVolumeChange;
+
+    // Called with the new pan, from -1 for full left to 1 for full right, when the pan knob moves.
+    std::function<void(float)> onPanChange;
+
   private:
     // Samples per point in the thumbnail, enough detail for a lane's width.
     static constexpr int kSamplesPerThumbnailPoint = 256;
