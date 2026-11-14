@@ -5,10 +5,25 @@
 
 #include <algorithm>
 
+namespace {
+
+constexpr double kGainRampSeconds = 0.02; // [s], long enough that a control change won't click
+
+} // namespace
+
 // Pass sample rate to recorder and player and prepare buffers.
 void MainComponent::prepareToPlay(int /*samplesPerBlockExpected*/, double sampleRate) {
     audioRecorder.prepare(sampleRate);
     loopPlayer.prepare(sampleRate);
+
+    // Starts each track at its current settings, so playback doesn't ramp in from silence.
+    if (sampleRate > 0.0) {
+        for (std::size_t track = 0; track < als::kTrackCount; ++track) {
+            TrackGains& gains = trackGains[track];
+            gains.volume.reset(sampleRate, kGainRampSeconds);
+            gains.volume.setCurrentAndTargetValue(trackVolumes[track]);
+        }
+    }
 
     // Construct loop controller once, and after recorder has allocated buffer
     if (!loopController && audioRecorder.capacity() > 0) {
@@ -135,6 +150,11 @@ void MainComponent::getNextAudioBlock(const juce::AudioSourceChannelInfo& buffer
         }
 
         if (timing) {
+            // The lanes' latest settings, which each track's gains ease toward over this block.
+            for (std::size_t track = 0; track < als::kTrackCount; ++track) {
+                trackGains[track].volume.setTargetValue(trackVolumes[track]);
+            }
+
             std::array<float, als::kTrackCount>
                 blockTrackPeaks{}; // holds loudest sample of each track per block
             for (int i = 0; i < bufferToFill.numSamples; ++i) {
@@ -146,6 +166,9 @@ void MainComponent::getNextAudioBlock(const juce::AudioSourceChannelInfo& buffer
                     0.0f; // Start with silence but will add each track's audio part at instant
 
                 for (std::size_t track = 0; track < als::kTrackCount; ++track) {
+                    // Eased even while muted, so unmuting doesn't jump to a setting changed since.
+                    const float volume = trackGains[track].volume.getNextValue();
+
                     // Skip muted track
                     if (!loopController->audible(track, now)) {
                         continue;
@@ -160,8 +183,10 @@ void MainComponent::getNextAudioBlock(const juce::AudioSourceChannelInfo& buffer
                         index += timing->length;
                     }
 
-                    // Add each track's contribution to mixed & track it's peak sample
-                    const float sample = audioRecorder.sampleAt(track, static_cast<int>(index));
+                    // Add each track's contribution to mixed & track its peak, after volume so the
+                    // meter follows the volume slider
+                    const float sample =
+                        audioRecorder.sampleAt(track, static_cast<int>(index)) * volume;
                     blockTrackPeaks[track] = std::max(blockTrackPeaks[track], std::abs(sample));
                     mixed += sample;
                 }

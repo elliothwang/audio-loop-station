@@ -118,6 +118,13 @@ class MainComponent : public juce::AudioAppComponent, private juce::Timer {
     // writes, the audio thread reads.
     std::array<std::atomic<float>, als::kTrackCount> trackPans{};
 
+    // A track's volume gain, eased toward its setting so a change ramps in instead of clicking.
+    // Audio thread only.
+    struct TrackGains {
+        juce::SmoothedValue<float> volume;
+    };
+    std::array<TrackGains, als::kTrackCount> trackGains;
+
     // The finished clip count as of the last snapshot publish. Until it matches finishedClips(),
     // the take starts and loop length for the newest clip may not be written yet. Audio thread
     // writes.
