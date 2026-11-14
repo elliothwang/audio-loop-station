@@ -118,10 +118,12 @@ class MainComponent : public juce::AudioAppComponent, private juce::Timer {
     // writes, the audio thread reads.
     std::array<std::atomic<float>, als::kTrackCount> trackPans{};
 
-    // A track's volume gain, eased toward its setting so a change ramps in instead of clicking.
-    // Audio thread only.
+    // A track's volume and pan gains, eased toward its settings so a change ramps in instead of
+    // clicking. Audio thread only.
     struct TrackGains {
         juce::SmoothedValue<float> volume;
+        juce::SmoothedValue<float> left;
+        juce::SmoothedValue<float> right;
     };
     std::array<TrackGains, als::kTrackCount> trackGains;
 

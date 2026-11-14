@@ -1,6 +1,7 @@
 #pragma once
 
 #include "MainComponent.h"
+#include "core/PanLaw.h"
 #include <juce_audio_utils/juce_audio_utils.h>
 
 #include <algorithm>
@@ -19,9 +20,14 @@ void MainComponent::prepareToPlay(int /*samplesPerBlockExpected*/, double sample
     // Starts each track at its current settings, so playback doesn't ramp in from silence.
     if (sampleRate > 0.0) {
         for (std::size_t track = 0; track < als::kTrackCount; ++track) {
+            const als::PanGains pan = als::panGains(trackPans[track]);
             TrackGains& gains = trackGains[track];
             gains.volume.reset(sampleRate, kGainRampSeconds);
             gains.volume.setCurrentAndTargetValue(trackVolumes[track]);
+            gains.left.reset(sampleRate, kGainRampSeconds);
+            gains.left.setCurrentAndTargetValue(pan.left);
+            gains.right.reset(sampleRate, kGainRampSeconds);
+            gains.right.setCurrentAndTargetValue(pan.right);
         }
     }
 
@@ -152,7 +158,10 @@ void MainComponent::getNextAudioBlock(const juce::AudioSourceChannelInfo& buffer
         if (timing) {
             // The lanes' latest settings, which each track's gains ease toward over this block.
             for (std::size_t track = 0; track < als::kTrackCount; ++track) {
+                const als::PanGains pan = als::panGains(trackPans[track]);
                 trackGains[track].volume.setTargetValue(trackVolumes[track]);
+                trackGains[track].left.setTargetValue(pan.left);
+                trackGains[track].right.setTargetValue(pan.right);
             }
 
             std::array<float, als::kTrackCount>
@@ -162,12 +171,15 @@ void MainComponent::getNextAudioBlock(const juce::AudioSourceChannelInfo& buffer
                 const auto position = als::loopPosition(
                     *timing,
                     now); // Converts shared clock time to position that will repeat each loop
-                float mixed =
-                    0.0f; // Start with silence but will add each track's audio part at instant
+                float mixedLeft = 0.0f; // Start with silence, then add each track's share
+                float mixedRight = 0.0f;
+                float mixedMono = 0.0f; // for a device with one output, which has no pan
 
                 for (std::size_t track = 0; track < als::kTrackCount; ++track) {
                     // Eased even while muted, so unmuting doesn't jump to a setting changed since.
                     const float volume = trackGains[track].volume.getNextValue();
+                    const float leftGain = trackGains[track].left.getNextValue();
+                    const float rightGain = trackGains[track].right.getNextValue();
 
                     // Skip muted track
                     if (!loopController->audible(track, now)) {
@@ -183,18 +195,21 @@ void MainComponent::getNextAudioBlock(const juce::AudioSourceChannelInfo& buffer
                         index += timing->length;
                     }
 
-                    // Add each track's contribution to mixed & track its peak, after volume so the
-                    // meter follows the volume slider
+                    // Add each track's contribution to the mix & track its peak, after volume and
+                    // before pan so the meter follows the volume slider
                     const float sample =
                         audioRecorder.sampleAt(track, static_cast<int>(index)) * volume;
                     blockTrackPeaks[track] = std::max(blockTrackPeaks[track], std::abs(sample));
-                    mixed += sample;
+                    mixedLeft += sample * leftGain;
+                    mixedRight += sample * rightGain;
+                    mixedMono += sample;
                 }
 
-                const float output = std::clamp(mixed, -1.0f, 1.0f);
-                left[i] = output;
                 if (right != nullptr) {
-                    right[i] = output;
+                    left[i] = std::clamp(mixedLeft, -1.0f, 1.0f);
+                    right[i] = std::clamp(mixedRight, -1.0f, 1.0f);
+                } else {
+                    left[i] = std::clamp(mixedMono, -1.0f, 1.0f);
                 }
             }
 
