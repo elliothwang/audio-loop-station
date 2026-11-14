@@ -49,7 +49,7 @@ TrackLane::TrackLane(int trackNumber)
     styleCaption(volumeLabel, "Vol");
     volumeSlider.setSliderStyle(juce::Slider::LinearHorizontal);
     volumeSlider.setRange(0.0, 1.0, 0.01);
-    volumeSlider.setValue(1.0, juce::dontSendNotification);
+    volumeSlider.setValue(kDefaultVolume, juce::dontSendNotification);
     volumeSlider.setTextBoxStyle(juce::Slider::TextBoxRight, true, 56, 20);
     volumeSlider.textFromValueFunction = [](double gain) {
         return juce::Decibels::toString(juce::Decibels::gainToDecibels(gain), 1);

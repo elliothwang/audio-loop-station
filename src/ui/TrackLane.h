@@ -18,6 +18,9 @@ class TrackLane : public juce::Component {
     // Width of the controls on the left, shared with the timeline so the playhead lines up.
     static constexpr int kHeaderWidth = 430;
 
+    // The volume gain a lane starts at, which is full.
+    static constexpr float kDefaultVolume = 1.0f;
+
     // Lanes are numbered from 1 for display.
     explicit TrackLane(int trackNumber);
 

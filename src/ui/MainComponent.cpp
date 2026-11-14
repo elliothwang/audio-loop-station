@@ -80,7 +80,6 @@ MainComponent::MainComponent() {
     track4.onDelete = [this]() { deleteClip(3); };
 
     // The mixer eases each track toward its lane's volume and pan.
-    const std::array<TrackLane*, als::kTrackCount> lanes{&track1, &track2, &track3, &track4};
     for (std::size_t track = 0; track < lanes.size(); ++track) {
         lanes[track]->onVolumeChange = [this, track](float gain) { trackVolumes[track] = gain; };
         lanes[track]->onPanChange = [this, track](float pan) { trackPans[track] = pan; };
@@ -118,7 +117,6 @@ void MainComponent::timerCallback() {
         transport ==
             als::Transport::RecordingFirstTake); // Stop available during playback or first take
 
-    const std::array<TrackLane*, als::kTrackCount> lanes{&track1, &track2, &track3, &track4};
     for (std::size_t i = 0; i < lanes.size(); ++i) {
         lanes[i]->setState(controllerSnapshot.track(i));
         lanes[i]->setLevel(trackPeaks[i].exchange(0.0f));
@@ -175,9 +173,6 @@ void MainComponent::updateWaveform(AudioRecorder::RecordingState recorderState) 
 
     waveformClip = finished;
     waveformLoopLength = loopLength;
-
-    // Track lane matches track indices of recorder
-    const std::array<TrackLane*, als::kTrackCount> lanes{&track1, &track2, &track3, &track4};
 
     for (std::size_t track = 0; track < lanes.size(); ++track) {
         auto& clip = samples[track];

@@ -90,6 +90,9 @@ class MainComponent : public juce::AudioAppComponent, private juce::Timer {
     TrackLane track2{2};
     TrackLane track3{3};
     TrackLane track4{4};
+
+    // The lanes in track order, so track index i drives lanes[i].
+    const std::array<TrackLane*, als::kTrackCount> lanes{&track1, &track2, &track3, &track4};
     Playhead playhead; // after the lanes, so it draws over them
     DeviceFooter deviceFooter{deviceManager};
     LoadLoopComponent loopsPanel{[this](const juce::File& folder) { loadLoop(folder); }};
@@ -112,7 +115,10 @@ class MainComponent : public juce::AudioAppComponent, private juce::Timer {
 
     // Each track's volume gain from 0 to 1, starting at full like the lanes' sliders. The UI
     // writes, the audio thread reads.
-    std::array<std::atomic<float>, als::kTrackCount> trackVolumes{1.0f, 1.0f, 1.0f, 1.0f};
+    std::array<std::atomic<float>, als::kTrackCount> trackVolumes{
+        TrackLane::kDefaultVolume, TrackLane::kDefaultVolume, TrackLane::kDefaultVolume,
+        TrackLane::kDefaultVolume};
+    static_assert(als::kTrackCount == 4, "trackVolumes needs one starting volume per track");
 
     // Each track's pan from -1 for full left to 1 for full right, starting at centre. The UI
     // writes, the audio thread reads.
