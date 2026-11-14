@@ -156,69 +156,7 @@ void MainComponent::getNextAudioBlock(const juce::AudioSourceChannelInfo& buffer
         }
 
         if (timing) {
-            // The lanes' latest settings, which each track's gains ease toward over this block.
-            for (std::size_t track = 0; track < als::kTrackCount; ++track) {
-                const als::PanGains pan = als::panGains(trackPans[track]);
-                trackGains[track].volume.setTargetValue(trackVolumes[track]);
-                trackGains[track].left.setTargetValue(pan.left);
-                trackGains[track].right.setTargetValue(pan.right);
-            }
-
-            std::array<float, als::kTrackCount>
-                blockTrackPeaks{}; // holds loudest sample of each track per block
-            for (int i = 0; i < bufferToFill.numSamples; ++i) {
-                const auto now = blockStart + i;
-                const auto position = als::loopPosition(
-                    *timing,
-                    now); // Converts shared clock time to position that will repeat each loop
-                float mixedLeft = 0.0f; // Start with silence, then add each track's share
-                float mixedRight = 0.0f;
-                float mixedMono = 0.0f; // for a device with one output, which has no pan
-
-                for (std::size_t track = 0; track < als::kTrackCount; ++track) {
-                    // Eased even while muted, so unmuting doesn't jump to a setting changed since.
-                    const float volume = trackGains[track].volume.getNextValue();
-                    const float leftGain = trackGains[track].left.getNextValue();
-                    const float rightGain = trackGains[track].right.getNextValue();
-
-                    // Skip muted track
-                    if (!loopController->audible(track, now)) {
-                        continue;
-                    }
-
-                    // Converts loop position to index in track's buffer.
-                    const auto takeStart = trackStartPositions[track].load();
-                    auto index = position - takeStart;
-
-                    // Wrap negative index
-                    if (index < 0) {
-                        index += timing->length;
-                    }
-
-                    // Add each track's contribution to the mix & track its peak, after volume and
-                    // before pan so the meter follows the volume slider
-                    const float sample =
-                        audioRecorder.sampleAt(track, static_cast<int>(index)) * volume;
-                    blockTrackPeaks[track] = std::max(blockTrackPeaks[track], std::abs(sample));
-                    mixedLeft += sample * leftGain;
-                    mixedRight += sample * rightGain;
-                    mixedMono += sample;
-                }
-
-                if (right != nullptr) {
-                    left[i] = std::clamp(mixedLeft, -1.0f, 1.0f);
-                    right[i] = std::clamp(mixedRight, -1.0f, 1.0f);
-                } else {
-                    left[i] = std::clamp(mixedMono, -1.0f, 1.0f);
-                }
-            }
-
-            // Held at the loudest block until the timer reads it, so a short peak between ticks
-            // still shows. A reset between this load and store is overwritten, which only holds it
-            // one tick.
-            for (size_t i = 0; i < als::kTrackCount; i++) {
-                trackPeaks[i].store(std::max(trackPeaks[i].load(), blockTrackPeaks[i]));
-            }
+            mixTracks(*timing, blockStart, bufferToFill.numSamples, left, right);
         }
     }
 
@@ -240,6 +178,75 @@ void MainComponent::getNextAudioBlock(const juce::AudioSourceChannelInfo& buffer
     // Release pairs with the acquire in copyLoop() and updateWaveform(), so a UI that sees this
     // count also sees the take starts and snapshot this block wrote for it.
     publishedClips.store(audioRecorder.finishedClips(), std::memory_order_release);
+}
+
+void MainComponent::updateGainTargets() {
+    for (std::size_t track = 0; track < als::kTrackCount; ++track) {
+        const als::PanGains pan = als::panGains(trackPans[track]);
+        trackGains[track].volume.setTargetValue(trackVolumes[track]);
+        trackGains[track].left.setTargetValue(pan.left);
+        trackGains[track].right.setTargetValue(pan.right);
+    }
+}
+
+void MainComponent::mixTracks(const als::LoopTiming& timing, std::int64_t blockStart,
+                              int sampleCount, float* left, float* right) {
+    jassert(loopController.has_value());
+    updateGainTargets();
+
+    std::array<float, als::kTrackCount>
+        blockTrackPeaks{}; // holds loudest sample of each track per block
+    for (int i = 0; i < sampleCount; ++i) {
+        const auto now = blockStart + i;
+        // Converts shared clock time to position that will repeat each loop
+        const auto position = als::loopPosition(timing, now);
+        float mixedLeft = 0.0f; // Start with silence, then add each track's share
+        float mixedRight = 0.0f;
+        float mixedMono = 0.0f; // for a device with one output, which has no pan
+
+        for (std::size_t track = 0; track < als::kTrackCount; ++track) {
+            // Eased even while muted, so unmuting doesn't jump to a setting changed since.
+            const float volume = trackGains[track].volume.getNextValue();
+            const float leftGain = trackGains[track].left.getNextValue();
+            const float rightGain = trackGains[track].right.getNextValue();
+
+            // Skip muted track
+            if (!loopController->audible(track, now)) {
+                continue;
+            }
+
+            // Converts loop position to index in track's buffer.
+            const auto takeStart = trackStartPositions[track].load();
+            auto index = position - takeStart;
+
+            // Wrap negative index
+            if (index < 0) {
+                index += timing.length;
+            }
+
+            // Add each track's contribution to the mix & track its peak, after volume and
+            // before pan so the meter follows the volume slider
+            const float sample = audioRecorder.sampleAt(track, static_cast<int>(index)) * volume;
+            blockTrackPeaks[track] = std::max(blockTrackPeaks[track], std::abs(sample));
+            mixedLeft += sample * leftGain;
+            mixedRight += sample * rightGain;
+            mixedMono += sample;
+        }
+
+        if (right != nullptr) {
+            left[i] = std::clamp(mixedLeft, -1.0f, 1.0f);
+            right[i] = std::clamp(mixedRight, -1.0f, 1.0f);
+        } else {
+            left[i] = std::clamp(mixedMono, -1.0f, 1.0f);
+        }
+    }
+
+    // Held at the loudest block until the timer reads it, so a short peak between ticks
+    // still shows. A reset between this load and store is overwritten, which only holds it
+    // one tick.
+    for (size_t i = 0; i < als::kTrackCount; i++) {
+        trackPeaks[i].store(std::max(trackPeaks[i].load(), blockTrackPeaks[i]));
+    }
 }
 
 void MainComponent::playButtonClicked() {

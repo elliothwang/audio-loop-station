@@ -136,6 +136,16 @@ class MainComponent : public juce::AudioAppComponent, private juce::Timer {
     std::uint32_t waveformClip = 0;
     std::int64_t waveformLoopLength = 0;
 
+    // Points each track's gains at its lane's latest volume and pan, which they ease toward over
+    // the next block. Audio thread only.
+    void updateGainTargets();
+
+    // Mixes every audible track into `left` and `right` for the `sampleCount` samples from
+    // `blockStart`, and holds each track's peak for its meter. If `right` is null, the device has
+    // one output and pan is skipped. Audio thread only, and only while loopController is set.
+    void mixTracks(const als::LoopTiming& timing, std::int64_t blockStart, int sampleCount,
+                   float* left, float* right);
+
     void playButtonClicked();
     void stopButtonClicked();
 
