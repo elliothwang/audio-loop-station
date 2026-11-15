@@ -254,6 +254,10 @@ void TrackLane::resetSettings() {
 void TrackLane::nudgeSlip(int deltaMs) {
     slipOffsetMs += deltaMs;
 
+    if (onSlipChange) {
+        onSlipChange(static_cast<int>(slipOffsetMs));
+    }
+
     // Show a sign on later offsets too, so +10 and -10 are easy to tell apart.
     const juce::String sign = slipOffsetMs > 0 ? "+" : "";
     slipOffsetLabel.setText(sign + juce::String(slipOffsetMs) + " ms", juce::dontSendNotification);

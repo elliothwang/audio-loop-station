@@ -140,6 +140,12 @@ class MainComponent : public juce::AudioAppComponent, private juce::Timer {
     };
     std::array<TrackGains, als::kTrackCount> trackGains;
 
+    // Each tracks slip offset in ms, UI writes, audio thread reads.
+    std::array<std::atomic<int>, als::kTrackCount> trackSlips{};
+    
+    // Sample rate passed in from prepareToPlay() call, needed for slipMs -> samples
+    double audioSampleRate = 0.0;
+
     // The finished clip count as of the last snapshot publish. Until it matches finishedClips(),
     // the take starts and loop length for the newest clip may not be written yet. Audio thread
     // writes.

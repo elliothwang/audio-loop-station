@@ -84,6 +84,7 @@ MainComponent::MainComponent() {
         lanes[track]->onVolumeChange = [this, track](float gain) { trackVolumes[track] = gain; };
         lanes[track]->onPanChange = [this, track](float pan) { trackPans[track] = pan; };
         lanes[track]->onMuteChange = [this, track](bool muted) { trackMuted[track] = muted; };
+        lanes[track]->onSlipChange = [this, track](int slip) { trackSlips[track] = slip; };
         lanes[track]->onReverseChange = [this, track](bool reversed) {
             trackReversed[track].store(reversed);
             waveformSettingsChanged = true;

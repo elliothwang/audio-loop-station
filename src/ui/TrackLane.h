@@ -65,6 +65,9 @@ class TrackLane : public juce::Component {
     // Called to report whether a lane's Reverse button is on or off.
     std::function<void(bool)> onReverseChange;
 
+    // Called with the new slip offset
+    std::function<void(int)> onSlipChange;
+
   private:
     // Samples per point in the thumbnail, enough detail for a lane's width.
     static constexpr int kSamplesPerThumbnailPoint = 256;
@@ -93,7 +96,7 @@ class TrackLane : public juce::Component {
     juce::TextButton slipEarlierButton{"-"};
     juce::TextButton slipLaterButton{"+"};
     juce::Label slipOffsetLabel;
-    int slipOffsetMs = 0; // [ms], kept here until lanes are connected to tracks
+    int slipOffsetMs = 0; // [ms], kept this here to match other settings being saved locally
     juce::Slider panSlider;
     juce::Label panLabel;
     LevelMeter meter;

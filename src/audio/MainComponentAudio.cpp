@@ -14,6 +14,7 @@ constexpr double kGainRampSeconds = 0.02; // [s], long enough that a control cha
 
 // Pass sample rate to recorder and player and prepare buffers.
 void MainComponent::prepareToPlay(int /*samplesPerBlockExpected*/, double sampleRate) {
+    audioSampleRate = sampleRate;
     audioRecorder.prepare(sampleRate);
     loopPlayer.prepare(sampleRate);
 
@@ -198,6 +199,13 @@ void MainComponent::mixTracks(const als::LoopTiming& timing, std::int64_t blockS
 
     for (std::size_t track = 0; track < als::kTrackCount; ++track) {
         reversed[track] = trackReversed[track].load();
+    }
+
+    // Convert each tracks slipOffset from ms to samples
+    std::array<std::int64_t, als::kTrackCount> slipSamples{};
+    for (std::size_t track = 0; track < als::kTrackCount; ++track) {
+        slipSamples[track] = als::millisecondsToSamples(
+            trackSlips[track].load(), audioSampleRate);
     }
 
     std::array<float, als::kTrackCount>
