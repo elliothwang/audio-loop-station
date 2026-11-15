@@ -367,6 +367,11 @@ void MainComponent::loadLoop(const juce::File& folder) {
     }
     transportBar.setLoopName(folder.getFileName());
     showLoopsPanel(false); // only once loaded, so after a failure another loop can be picked
+
+    // Loops aren't related, so the new one starts from default lane settings.
+    for (TrackLane* lane : lanes) {
+        lane->resetSettings();
+    }
 }
 
 bool MainComponent::audioRunning(const juce::String& title) {

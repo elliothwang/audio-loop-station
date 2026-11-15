@@ -15,6 +15,8 @@ constexpr int kSmallButtonSize = 28;     // [px] square, for delete and the slip
 constexpr int kRowGap = 8;               // [px] between the header's rows
 constexpr int kColumnGap = 14;           // [px] between the header's right-hand columns
 
+constexpr double kCentrePan = 0.0; // where the pan knob starts, and where a double click returns it
+
 // Gives a short-labelled button a full name for screen readers and a matching tooltip.
 void nameButton(juce::Button& button, const juce::String& name) {
     button.setTitle(name);
@@ -83,8 +85,8 @@ TrackLane::TrackLane(int trackNumber)
 
     panSlider.setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
     panSlider.setRange(-1.0, 1.0, 0.01);
-    panSlider.setValue(0.0, juce::dontSendNotification);
-    panSlider.setDoubleClickReturnValue(true, 0.0);
+    panSlider.setValue(kCentrePan, juce::dontSendNotification);
+    panSlider.setDoubleClickReturnValue(true, kCentrePan);
     panSlider.setTextBoxStyle(juce::Slider::NoTextBox, true, 0, 0);
     panSlider.setTitle("Track " + juce::String(trackNumber) + " pan");
     panSlider.onValueChange = [this]() {
@@ -220,6 +222,15 @@ void TrackLane::clearWaveform() {
 
 void TrackLane::setLevel(float level) {
     meter.setLevel(level);
+}
+
+void TrackLane::resetSettings() {
+    // Sent, so the mixer and the pan label follow.
+    volumeSlider.setValue(kDefaultVolume, juce::sendNotificationSync);
+    panSlider.setValue(kCentrePan, juce::sendNotificationSync);
+    muteButton.setToggleState(false, juce::dontSendNotification);
+    reverseButton.setToggleState(false, juce::dontSendNotification);
+    nudgeSlip(-slipOffsetMs); // back to 0 ms
 }
 
 void TrackLane::nudgeSlip(int deltaMs) {

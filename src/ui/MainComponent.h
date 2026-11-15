@@ -69,8 +69,8 @@ class MainComponent : public juce::AudioAppComponent, private juce::Timer {
     // load, or delete finishes during the copy. Message thread.
     [[nodiscard]] juce::Result copyLoop(als::SavedLoop& loop);
 
-    // Loads the loop in `folder` in place of every track and closes the saved loops panel, or
-    // reports a failure and leaves the panel open.
+    // Loads the loop in `folder` in place of every track, resets every lane's settings, and closes
+    // the saved loops panel, or reports a failure and leaves all three alone.
     void loadLoop(const juce::File& folder);
 
     // Opens the saved loops panel with a fresh list, or closes it, and lays the window out again.

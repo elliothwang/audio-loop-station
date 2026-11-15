@@ -43,6 +43,10 @@ class TrackLane : public juce::Component {
     // Shows a level from 0 to 1 in the lane's meter.
     void setLevel(float level);
 
+    // Puts volume, pan, mute, reverse, and slip back to their defaults, for a newly loaded loop.
+    // The volume and pan changes are reported through onVolumeChange and onPanChange.
+    void resetSettings();
+
     // Called when the lane's delete button is clicked.
     std::function<void()> onDelete;
 
