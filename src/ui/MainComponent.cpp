@@ -79,6 +79,13 @@ MainComponent::MainComponent() {
     track3.onDelete = [this]() { deleteClip(2); };
     track4.onDelete = [this]() { deleteClip(3); };
 
+    // The mixer eases each track toward its lane's volume, pan, and mute.
+    for (std::size_t track = 0; track < lanes.size(); ++track) {
+        lanes[track]->onVolumeChange = [this, track](float gain) { trackVolumes[track] = gain; };
+        lanes[track]->onPanChange = [this, track](float pan) { trackPans[track] = pan; };
+        lanes[track]->onMuteChange = [this, track](bool muted) { trackMuted[track] = muted; };
+    }
+
     // Audio button 'clicked' functions defined in src/audio/MainComponentAudio.cpp
     playButton.onClick = [this] { playButtonClicked(); };
     playButton.setEnabled(false); // is enabled once a clip is recorded
@@ -111,7 +118,6 @@ void MainComponent::timerCallback() {
         transport ==
             als::Transport::RecordingFirstTake); // Stop available during playback or first take
 
-    const std::array<TrackLane*, als::kTrackCount> lanes{&track1, &track2, &track3, &track4};
     for (std::size_t i = 0; i < lanes.size(); ++i) {
         lanes[i]->setState(controllerSnapshot.track(i));
         lanes[i]->setLevel(trackPeaks[i].exchange(0.0f));
@@ -168,9 +174,6 @@ void MainComponent::updateWaveform(AudioRecorder::RecordingState recorderState) 
 
     waveformClip = finished;
     waveformLoopLength = loopLength;
-
-    // Track lane matches track indices of recorder
-    const std::array<TrackLane*, als::kTrackCount> lanes{&track1, &track2, &track3, &track4};
 
     for (std::size_t track = 0; track < lanes.size(); ++track) {
         auto& clip = samples[track];
@@ -365,6 +368,11 @@ void MainComponent::loadLoop(const juce::File& folder) {
     }
     transportBar.setLoopName(folder.getFileName());
     showLoopsPanel(false); // only once loaded, so after a failure another loop can be picked
+
+    // Loops aren't related, so the new one starts from default lane settings.
+    for (TrackLane* lane : lanes) {
+        lane->resetSettings();
+    }
 }
 
 bool MainComponent::audioRunning(const juce::String& title) {

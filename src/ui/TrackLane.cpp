@@ -15,6 +15,8 @@ constexpr int kSmallButtonSize = 28;     // [px] square, for delete and the slip
 constexpr int kRowGap = 8;               // [px] between the header's rows
 constexpr int kColumnGap = 14;           // [px] between the header's right-hand columns
 
+constexpr double kCentrePan = 0.0; // where the pan knob starts, and where a double click returns it
+
 // Gives a short-labelled button a full name for screen readers and a matching tooltip.
 void nameButton(juce::Button& button, const juce::String& name) {
     button.setTitle(name);
@@ -49,17 +51,27 @@ TrackLane::TrackLane(int trackNumber)
     styleCaption(volumeLabel, "Vol");
     volumeSlider.setSliderStyle(juce::Slider::LinearHorizontal);
     volumeSlider.setRange(0.0, 1.0, 0.01);
-    volumeSlider.setValue(1.0, juce::dontSendNotification);
+    volumeSlider.setValue(kDefaultVolume, juce::dontSendNotification);
     volumeSlider.setTextBoxStyle(juce::Slider::TextBoxRight, true, 56, 20);
     volumeSlider.textFromValueFunction = [](double gain) {
         return juce::Decibels::toString(juce::Decibels::gainToDecibels(gain), 1);
     };
     volumeSlider.updateText(); // the text box was filled before the dB format was set
     volumeSlider.setTitle("Track " + juce::String(trackNumber) + " volume");
+    volumeSlider.onValueChange = [this]() {
+        if (onVolumeChange) {
+            onVolumeChange(static_cast<float>(volumeSlider.getValue()));
+        }
+    };
 
     // When toggled on, mute turns yellow and reverse turns blue.
     muteButton.setClickingTogglesState(true);
     muteButton.setColour(juce::TextButton::buttonOnColourId, palette::mute);
+    muteButton.onClick = [this]() {
+        if (onMuteChange) {
+            onMuteChange(muteButton.getToggleState());
+        }
+    };
     reverseButton.setClickingTogglesState(true);
     reverseButton.setColour(juce::TextButton::buttonOnColourId, palette::reverse);
 
@@ -78,11 +90,16 @@ TrackLane::TrackLane(int trackNumber)
 
     panSlider.setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
     panSlider.setRange(-1.0, 1.0, 0.01);
-    panSlider.setValue(0.0, juce::dontSendNotification);
-    panSlider.setDoubleClickReturnValue(true, 0.0);
+    panSlider.setValue(kCentrePan, juce::dontSendNotification);
+    panSlider.setDoubleClickReturnValue(true, kCentrePan);
     panSlider.setTextBoxStyle(juce::Slider::NoTextBox, true, 0, 0);
     panSlider.setTitle("Track " + juce::String(trackNumber) + " pan");
-    panSlider.onValueChange = [this]() { updatePanLabel(); };
+    panSlider.onValueChange = [this]() {
+        updatePanLabel();
+        if (onPanChange) {
+            onPanChange(static_cast<float>(panSlider.getValue()));
+        }
+    };
     panLabel.setJustificationType(juce::Justification::centred);
     styleCaption(panLabel, {});
     updatePanLabel();
@@ -210,6 +227,15 @@ void TrackLane::clearWaveform() {
 
 void TrackLane::setLevel(float level) {
     meter.setLevel(level);
+}
+
+void TrackLane::resetSettings() {
+    // Sent, so the mixer and the pan label follow.
+    volumeSlider.setValue(kDefaultVolume, juce::sendNotificationSync);
+    panSlider.setValue(kCentrePan, juce::sendNotificationSync);
+    muteButton.setToggleState(false, juce::sendNotificationSync);
+    reverseButton.setToggleState(false, juce::dontSendNotification);
+    nudgeSlip(-slipOffsetMs); // back to 0 ms
 }
 
 void TrackLane::nudgeSlip(int deltaMs) {

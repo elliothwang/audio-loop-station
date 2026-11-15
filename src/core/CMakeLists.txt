@@ -1,4 +1,4 @@
-# Sample clock, loop timing, track data, and loop controller. Plain C++, no framework headers.
+# Sample clock, loop timing, track data, loop controller, and pan law. Plain C++, no framework headers.
 add_library(als_core STATIC
     ControllerSnapshot.cpp
     ControllerSnapshot.h
@@ -10,6 +10,8 @@ add_library(als_core STATIC
     LoopPlayer.h
     LoopTiming.cpp
     LoopTiming.h
+    PanLaw.cpp
+    PanLaw.h
     SampleClock.cpp
     SampleClock.h
 )

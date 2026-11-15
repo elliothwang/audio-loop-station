@@ -18,6 +18,9 @@ class TrackLane : public juce::Component {
     // Width of the controls on the left, shared with the timeline so the playhead lines up.
     static constexpr int kHeaderWidth = 430;
 
+    // The volume gain a lane starts at, which is full.
+    static constexpr float kDefaultVolume = 1.0f;
+
     // Lanes are numbered from 1 for display.
     explicit TrackLane(int trackNumber);
 
@@ -40,8 +43,21 @@ class TrackLane : public juce::Component {
     // Shows a level from 0 to 1 in the lane's meter.
     void setLevel(float level);
 
+    // Puts volume, pan, mute, reverse, and slip back to their defaults, for a newly loaded loop.
+    // The volume, pan, and mute changes are reported through their change callbacks.
+    void resetSettings();
+
     // Called when the lane's delete button is clicked.
     std::function<void()> onDelete;
+
+    // Called with the new gain, from 0 to 1, when the volume slider moves.
+    std::function<void(float)> onVolumeChange;
+
+    // Called with the new pan, from -1 for full left to 1 for full right, when the pan knob moves.
+    std::function<void(float)> onPanChange;
+
+    // Called with whether the track is now muted, when the mute button is toggled.
+    std::function<void(bool)> onMuteChange;
 
   private:
     // Samples per point in the thumbnail, enough detail for a lane's width.

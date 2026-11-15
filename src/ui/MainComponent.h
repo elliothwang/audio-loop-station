@@ -69,8 +69,8 @@ class MainComponent : public juce::AudioAppComponent, private juce::Timer {
     // load, or delete finishes during the copy. Message thread.
     [[nodiscard]] juce::Result copyLoop(als::SavedLoop& loop);
 
-    // Loads the loop in `folder` in place of every track and closes the saved loops panel, or
-    // reports a failure and leaves the panel open.
+    // Loads the loop in `folder` in place of every track, resets every lane's settings, and closes
+    // the saved loops panel, or reports a failure and leaves all three alone.
     void loadLoop(const juce::File& folder);
 
     // Opens the saved loops panel with a fresh list, or closes it, and lays the window out again.
@@ -90,6 +90,9 @@ class MainComponent : public juce::AudioAppComponent, private juce::Timer {
     TrackLane track2{2};
     TrackLane track3{3};
     TrackLane track4{4};
+
+    // The lanes in track order, so track index i drives lanes[i].
+    const std::array<TrackLane*, als::kTrackCount> lanes{&track1, &track2, &track3, &track4};
     Playhead playhead; // after the lanes, so it draws over them
     DeviceFooter deviceFooter{deviceManager};
     LoadLoopComponent loopsPanel{[this](const juce::File& folder) { loadLoop(folder); }};
@@ -110,6 +113,29 @@ class MainComponent : public juce::AudioAppComponent, private juce::Timer {
     // timer resets it.
     std::array<std::atomic<float>, als::kTrackCount> trackPeaks{};
 
+    // Each track's volume gain from 0 to 1, starting at full like the lanes' sliders. The UI
+    // writes, the audio thread reads.
+    std::array<std::atomic<float>, als::kTrackCount> trackVolumes{
+        TrackLane::kDefaultVolume, TrackLane::kDefaultVolume, TrackLane::kDefaultVolume,
+        TrackLane::kDefaultVolume};
+    static_assert(als::kTrackCount == 4, "trackVolumes needs one starting volume per track");
+
+    // Each track's pan from -1 for full left to 1 for full right, starting at centre. The UI
+    // writes, the audio thread reads.
+    std::array<std::atomic<float>, als::kTrackCount> trackPans{};
+
+    // Whether each track is muted, starting unmuted. The UI writes, the audio thread reads.
+    std::array<std::atomic<bool>, als::kTrackCount> trackMuted{};
+
+    // A track's volume and pan gains, eased toward its settings so a change ramps in instead of
+    // clicking. Mute eases the volume gain to silence. Audio thread only.
+    struct TrackGains {
+        juce::SmoothedValue<float> volume;
+        juce::SmoothedValue<float> left;
+        juce::SmoothedValue<float> right;
+    };
+    std::array<TrackGains, als::kTrackCount> trackGains;
+
     // The finished clip count as of the last snapshot publish. Until it matches finishedClips(),
     // the take starts and loop length for the newest clip may not be written yet. Audio thread
     // writes.
@@ -118,6 +144,16 @@ class MainComponent : public juce::AudioAppComponent, private juce::Timer {
     // The finished clip count the waveform was last drawn for. Message thread.
     std::uint32_t waveformClip = 0;
     std::int64_t waveformLoopLength = 0;
+
+    // Points each track's gains at its lane's latest volume, pan, and mute, which they ease toward
+    // over the next block. Audio thread only.
+    void updateGainTargets();
+
+    // Mixes every audible track into `left` and `right` for the `sampleCount` samples from
+    // `blockStart`, and holds each track's peak for its meter. If `right` is null, the device has
+    // one output and pan is skipped. Audio thread only, and only while loopController is set.
+    void mixTracks(const als::LoopTiming& timing, std::int64_t blockStart, int sampleCount,
+                   float* left, float* right);
 
     void playButtonClicked();
     void stopButtonClicked();
