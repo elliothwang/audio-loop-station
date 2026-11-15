@@ -37,8 +37,11 @@ class LoopController {
     // DeleteTrack. It has no default so a delete always names its track.
     [[nodiscard]] Result handle(Command command, std::int64_t now, std::size_t track) noexcept;
 
-    // Replace with previously saved, loaded clip to track 1 at beginning.
-    [[nodiscard]] bool loadSingleTrack(std::int64_t now, std::int64_t length) noexcept;
+    // Replaces every track with a loaded loop of `length` samples starting at `now`, stopped and
+    // waiting for PLAY. Tracks marked in `hasAudio` play, the rest are empty. Returns false and
+    // changes nothing if no track has audio or the length doesn't fit the buffer.
+    [[nodiscard]] bool loadTracks(std::int64_t now, std::int64_t length,
+                                  const std::array<bool, kTrackCount>& hasAudio) noexcept;
 
     // Call once per block. Ends a take that has reached its full length.
     void advance(std::int64_t now) noexcept;

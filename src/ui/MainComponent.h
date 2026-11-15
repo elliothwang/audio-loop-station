@@ -3,6 +3,7 @@
 #include "AudioCommandQueue.h"
 #include "AudioRecorder.h"
 #include "DeviceFooter.h"
+#include "LoadLoopComponent.h"
 #include "LoopStationLookAndFeel.h"
 #include "Playhead.h"
 #include "TimelineRuler.h"
@@ -60,11 +61,20 @@ class MainComponent : public juce::AudioAppComponent, private juce::Timer {
     // Feeds the time readout, ruler, and playhead from the playing loop.
     void updateTimeline();
 
-    // Saves the recorded clip as a loop called `name`, and reports how it went.
+    // Saves every recorded track as a loop called `name`, and reports how it went.
     void saveLoop(const juce::String& name);
 
-    // Loads the loop in `folder` into track 1, and reports a failure.
+    // Copies every track, where its take starts, and the loop length into `loop`. Fails while a
+    // take is recording, before the audio thread has published the newest clip, or if a take,
+    // load, or delete finishes during the copy. Message thread.
+    [[nodiscard]] juce::Result copyLoop(als::SavedLoop& loop);
+
+    // Loads the loop in `folder` in place of every track and closes the saved loops panel, or
+    // reports a failure and leaves the panel open.
     void loadLoop(const juce::File& folder);
+
+    // Opens the saved loops panel with a fresh list, or closes it, and lays the window out again.
+    void showLoopsPanel(bool show);
 
     // Returns true if an audio device is running, or shows `title` with why not and returns false.
     bool audioRunning(const juce::String& title);
@@ -82,6 +92,7 @@ class MainComponent : public juce::AudioAppComponent, private juce::Timer {
     TrackLane track4{4};
     Playhead playhead; // after the lanes, so it draws over them
     DeviceFooter deviceFooter{deviceManager};
+    LoadLoopComponent loopsPanel{[this](const juce::File& folder) { loadLoop(folder); }};
 
     // ----- Audio, needs declared here -----
     AudioRecorder audioRecorder;
@@ -98,6 +109,11 @@ class MainComponent : public juce::AudioAppComponent, private juce::Timer {
     // Loudest output per track since the timer last read it, from 0 to 1. Audio thread writes,
     // timer resets it.
     std::array<std::atomic<float>, als::kTrackCount> trackPeaks{};
+
+    // The finished clip count as of the last snapshot publish. Until it matches finishedClips(),
+    // the take starts and loop length for the newest clip may not be written yet. Audio thread
+    // writes.
+    std::atomic<std::uint32_t> publishedClips{0};
 
     // The finished clip count the waveform was last drawn for. Message thread.
     std::uint32_t waveformClip = 0;

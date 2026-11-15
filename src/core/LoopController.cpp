@@ -195,15 +195,18 @@ std::optional<std::size_t> LoopController::firstEmptyTrack() const noexcept {
     return std::nullopt;
 }
 
-bool LoopController::loadSingleTrack(std::int64_t now, std::int64_t length) noexcept {
-    // Loads previously saved single track to track 1. Will likely need to update/remove once full
-    // loop saving enabled.S
-    if (length <= 0 || length > maximumTakeLength_) {
+bool LoopController::loadTracks(std::int64_t now, std::int64_t length,
+                                const std::array<bool, kTrackCount>& hasAudio) noexcept {
+    const bool anyAudio =
+        std::any_of(hasAudio.begin(), hasAudio.end(), [](bool audio) { return audio; });
+    if (!anyAudio || length <= 0 || length > maximumTakeLength_) {
         return false;
     }
 
-    tracks_.fill(TrackState::Empty);
-    tracks_[0] = TrackState::Playing;
+    // A load replaces whatever was recording or playing, so any take in progress is dropped.
+    for (std::size_t i = 0; i < kTrackCount; ++i) {
+        tracks_[i] = hasAudio[i] ? TrackState::Playing : TrackState::Empty;
+    }
     loop_ = LoopTiming{now, length};
     takeStart_.reset();
     playing_ = false;

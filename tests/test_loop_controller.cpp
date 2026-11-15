@@ -251,6 +251,32 @@ TEST_CASE("nothing is audible while stopped", "[loop_controller]") {
     REQUIRE_FALSE(controller.audible(0, 400));
 }
 
+TEST_CASE("loading tracks replaces the loop, stopped", "[loop_controller]") {
+    LoopController controller = makePlayingLoop();
+    REQUIRE(controller.handle(Command::Record, 400, 0) == Result::Accepted);
+
+    REQUIRE(controller.loadTracks(5000, 300, {false, true, false, true}));
+    REQUIRE(controller.transport() == Transport::Stopped);
+    REQUIRE(controller.track(0) == TrackState::Empty);
+    REQUIRE(controller.track(1) == TrackState::Playing);
+    REQUIRE(controller.track(3) == TrackState::Playing);
+    REQUIRE_FALSE(controller.recordingTrack()); // the take in progress is dropped
+    REQUIRE(controller.loop()->origin == 5000);
+    REQUIRE(controller.loop()->length == 300);
+
+    REQUIRE(controller.handle(Command::Play, 6000, 0) == Result::Accepted);
+    REQUIRE(controller.audible(1, 6000));
+}
+
+TEST_CASE("a load with no audio or a bad length changes nothing", "[loop_controller]") {
+    LoopController controller = makePlayingLoop();
+    REQUIRE_FALSE(controller.loadTracks(5000, 300, {false, false, false, false}));
+    REQUIRE_FALSE(controller.loadTracks(5000, 0, {true, false, false, false}));
+    REQUIRE_FALSE(controller.loadTracks(5000, kMaximumTake + 1, {true, false, false, false}));
+    REQUIRE(controller.transport() == Transport::Playing);
+    REQUIRE(controller.loop()->length == 200);
+}
+
 TEST_CASE("snapshot copies the controller's state", "[loop_controller]") {
     LoopController controller = makePlayingLoop();
     REQUIRE(controller.handle(Command::Record, 400, 0) == Result::Accepted);

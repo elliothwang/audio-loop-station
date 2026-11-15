@@ -2,9 +2,14 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <array>
+#include <cstdint>
 #include <vector>
 
 namespace {
+
+using Tracks = std::array<std::vector<float>, als::kTrackCount>;
+using Starts = std::array<std::int64_t, als::kTrackCount>;
 
 constexpr double kSampleRate = 48000.0;
 const std::vector<float> kInput{0.25f, -0.5f, 0.75f};
@@ -28,10 +33,10 @@ TEST_CASE("a finished clip can be copied and played", "[audio_recorder]") {
     REQUIRE(recorder.clipLength() == kInput.size());
     REQUIRE(std::vector<float>(recorder.clip(), recorder.clip() + kInput.size()) == kInput);
 
-    std::vector<float> samples;
+    Tracks samples;
     double sampleRate = 0.0;
-    REQUIRE(recorder.copyRecording(samples, sampleRate).wasOk());
-    REQUIRE(samples == kInput);
+    REQUIRE(recorder.copyTracks(samples, sampleRate));
+    REQUIRE(samples == Tracks{kInput, {}, {}, {}});
     REQUIRE(sampleRate == kSampleRate);
     REQUIRE(recorder.getState() == AudioRecorder::RecordingState::Ready);
 }
@@ -39,15 +44,15 @@ TEST_CASE("a finished clip can be copied and played", "[audio_recorder]") {
 TEST_CASE("there's no clip while recording or before one exists", "[audio_recorder]") {
     AudioRecorder recorder;
     recorder.prepare(kSampleRate);
-    std::vector<float> samples;
+    Tracks samples;
     double sampleRate = 0.0;
     REQUIRE(recorder.clipLength() == 0);
-    REQUIRE(recorder.copyRecording(samples, sampleRate).failed());
+    REQUIRE_FALSE(recorder.copyTracks(samples, sampleRate));
 
     REQUIRE(recorder.requestStart());
     recorder.processInput(kInput.data(), static_cast<int>(kInput.size()));
     REQUIRE(recorder.clipLength() == 0);
-    REQUIRE(recorder.copyRecording(samples, sampleRate).failed());
+    REQUIRE_FALSE(recorder.copyTracks(samples, sampleRate));
 }
 
 TEST_CASE("a restart at the same rate keeps the clip", "[audio_recorder]") {
@@ -62,30 +67,50 @@ TEST_CASE("a restart at the same rate keeps the clip", "[audio_recorder]") {
     REQUIRE(recorder.clipLength() == 0);
 }
 
-TEST_CASE("a loaded clip replaces the recording at the next block", "[audio_recorder]") {
+TEST_CASE("loaded tracks replace every track at the next block", "[audio_recorder]") {
     AudioRecorder recorder;
     recorder.prepare(kSampleRate);
     recordClip(recorder);
 
-    const std::vector<float> loaded{0.5f, 0.5f, -0.5f, -0.5f};
-    REQUIRE(recorder.loadClip(loaded, kSampleRate).wasOk());
+    // Track 1 is left empty, so the recorded clip there has to be cleared.
+    Tracks samples;
+    samples[1] = {0.5f, 0.5f, -0.5f, -0.5f};
+    samples[3] = {0.125f};
+    const Starts starts{0, 4, 0, 5};
+    REQUIRE(recorder.loadTracks(samples, starts, 6, kSampleRate).wasOk());
     REQUIRE(recorder.clipLength() == 0); // not playable until the audio thread copies it in
     REQUIRE_FALSE(recorder.requestStart());
 
-    recorder.processInput(nullptr, 0);
+    const auto loaded = recorder.processInput(nullptr, 0);
+    REQUIRE(loaded.has_value());
+    REQUIRE(loaded->loopLength == 6);
+    REQUIRE(loaded->starts == starts);
+    REQUIRE(loaded->hasAudio == std::array<bool, als::kTrackCount>{false, true, false, true});
     REQUIRE(recorder.getState() == AudioRecorder::RecordingState::Ready);
-    REQUIRE(std::vector<float>(recorder.clip(), recorder.clip() + recorder.clipLength()) == loaded);
+
+    Tracks copied;
+    double sampleRate = 0.0;
+    REQUIRE(recorder.copyTracks(copied, sampleRate));
+    REQUIRE(copied == samples);
+    REQUIRE_FALSE(recorder.processInput(nullptr, 0).has_value()); // a load applies only once
 }
 
-TEST_CASE("a clip that doesn't fit isn't loaded", "[audio_recorder]") {
+TEST_CASE("tracks that don't fit aren't loaded", "[audio_recorder]") {
     AudioRecorder recorder;
     recorder.prepare(kSampleRate);
-    REQUIRE(recorder.loadClip(kInput, 44100.0).failed());
-    REQUIRE(recorder.loadClip({}, kSampleRate).failed());
-    REQUIRE(recorder.loadClip(std::vector<float>(61 * 48000), kSampleRate).failed());
+    const Tracks oneTrack{kInput, {}, {}, {}};
+    const Starts noStarts{};
+    const auto inputLength = static_cast<std::int64_t>(kInput.size());
+
+    REQUIRE(recorder.loadTracks(oneTrack, noStarts, inputLength, 44100.0).failed());
+    REQUIRE(recorder.loadTracks(Tracks{}, noStarts, inputLength, kSampleRate).failed());
+    REQUIRE(recorder.loadTracks(oneTrack, noStarts, inputLength - 1, kSampleRate).failed());
+    REQUIRE(recorder.loadTracks(oneTrack, Starts{inputLength, 0, 0, 0}, inputLength, kSampleRate)
+                .failed());
+    REQUIRE(recorder.loadTracks(oneTrack, noStarts, 61 * 48000, kSampleRate).failed());
 
     REQUIRE(recorder.requestStart());
-    REQUIRE(recorder.loadClip(kInput, kSampleRate).failed());
+    REQUIRE(recorder.loadTracks(oneTrack, noStarts, inputLength, kSampleRate).failed());
 }
 
 TEST_CASE("each finished take or load counts as a new clip", "[audio_recorder]") {
@@ -95,27 +120,15 @@ TEST_CASE("each finished take or load counts as a new clip", "[audio_recorder]")
     recordClip(recorder);
     REQUIRE(recorder.finishedClips() == 1);
 
-    std::vector<float> samples;
+    Tracks samples;
     double sampleRate = 0.0;
-    REQUIRE(recorder.copyRecording(samples, sampleRate).wasOk());
+    REQUIRE(recorder.copyTracks(samples, sampleRate));
     REQUIRE(recorder.finishedClips() == 1); // copying isn't a new clip
 
-    REQUIRE(recorder.loadClip(kInput, kSampleRate).wasOk());
+    REQUIRE(recorder
+                .loadTracks(Tracks{kInput, {}, {}, {}}, Starts{},
+                            static_cast<std::int64_t>(kInput.size()), kSampleRate)
+                .wasOk());
     recorder.processInput(nullptr, 0);
     REQUIRE(recorder.finishedClips() == 2);
-}
-
-TEST_CASE("clearing empties the clip at the next block", "[audio_recorder]") {
-    AudioRecorder recorder;
-    recorder.prepare(kSampleRate);
-    recordClip(recorder);
-
-    REQUIRE(recorder.clearClip().wasOk());
-    recorder.processInput(nullptr, 0);
-    REQUIRE(recorder.getState() == AudioRecorder::RecordingState::Ready);
-    REQUIRE(recorder.clipLength() == 0);
-    REQUIRE(recorder.finishedClips() == 2); // so the UI clears the waveform
-
-    REQUIRE(recorder.requestStart());
-    REQUIRE(recorder.clearClip().failed()); // a take in progress isn't deleted
 }

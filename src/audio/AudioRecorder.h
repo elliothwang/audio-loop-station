@@ -20,6 +20,13 @@ class AudioRecorder {
         Saving,
         Loading
     };
+    // What a load put in the tracks, so the audio thread can restart the loop around them.
+    struct LoadedTracks {
+        std::int64_t loopLength = 0;                         // [samples]
+        std::array<std::int64_t, als::kTrackCount> starts{}; // [samples] each take's loop position
+        std::array<bool, als::kTrackCount> hasAudio{};       // the rest were left empty
+    };
+
     AudioRecorder() = default;                    // C++ to provide normal constructor
     AudioRecorder(const AudioRecorder&) = delete; // Prevent copying of recorder
     AudioRecorder& operator=(const AudioRecorder&) = delete;
@@ -27,22 +34,23 @@ class AudioRecorder {
     void prepare(double sampleRate); // allocate buffer amount, kept on a restart at the same rate
     bool requestStart();             // returned boolean will indicate if request accepted
     bool requestStop();
-    std::optional<int> processInput(const float* inputSamples, int sampleCount);
+    // Records input and applies a pending load. Returns what was loaded on the block a load is
+    // copied in, and nullopt otherwise.
+    std::optional<LoadedTracks> processInput(const float* inputSamples, int sampleCount);
 
-    // Copies the finished clip and its sample rate out of the recorder. Fails if a take is still
-    // recording or nothing has been recorded.
-    [[nodiscard]] juce::Result copyRecording(std::vector<float>& samples, double& sampleRate);
+    // Copies every track's finished audio and the sample rate, for waveforms and saving. Message
+    // thread. Returns false unless the recorder is Ready, so never while a take records.
+    [[nodiscard]] bool copyTracks(std::array<std::vector<float>, als::kTrackCount>& samples,
+                                  double& sampleRate);
 
-    // UI thread to copy finished audio for waveforms of all four tracks
-    [[nodiscard]] bool copyWaveformTracks(std::array<std::vector<float>, als::kTrackCount>& samples,
-                                          double& sampleRate);
-
-    // Hands a saved clip to the audio thread, which copies it in as the finished clip at its next
-    // block. Fails while recording, or if the clip is empty, too long, or at another sample rate.
-    [[nodiscard]] juce::Result loadClip(const std::vector<float>& samples, double sampleRate);
-
-    // Empties the clip at the audio thread's next block. Fails while recording.
-    [[nodiscard]] juce::Result clearClip();
+    // Hands saved tracks to the audio thread, which copies them in at its next block in place of
+    // every track. `starts` holds each take's loop position and `loopLength` is in samples. Fails
+    // while recording, or if no track has audio, a take doesn't fit the loop, the loop doesn't fit
+    // the buffers, or the tracks were saved at another sample rate. `samples` is taken by value so
+    // the caller can move it in. Message thread.
+    [[nodiscard]] juce::Result loadTracks(std::array<std::vector<float>, als::kTrackCount> samples,
+                                          const std::array<std::int64_t, als::kTrackCount>& starts,
+                                          std::int64_t loopLength, double sampleRate);
 
     RecordingState getState() const noexcept;
 
@@ -78,10 +86,6 @@ class AudioRecorder {
     // Marks the clip finished and Ready. Audio thread.
     void finishClip() noexcept;
 
-    // Moves to Loading and hands `samples` to the audio thread as the next clip. Fails with
-    // `busyMessage` unless the recorder is Idle or Ready.
-    juce::Result handOverClip(const std::vector<float>& samples, const juce::String& busyMessage);
-
     // std::atomic allows state to be read across threads and changed
     std::atomic<RecordingState> state{RecordingState::Idle};
 
@@ -92,12 +96,13 @@ class AudioRecorder {
 
     bool captureActive = false; // Used by audio thread
 
-    // Copies a pending clip into the buffer and finishes it. Audio thread, while Loading.
-    std::optional<int> applyPendingClip() noexcept;
+    // Copies pending tracks into the buffers and finishes the load. Audio thread, while Loading.
+    std::optional<LoadedTracks> applyPendingTracks() noexcept;
 
-    // Set by handOverClip() while Loading, read by the audio thread once clipPending is true.
-    std::vector<float> pendingClip;
-    std::atomic<bool> clipPending{false};
+    // Set by loadTracks() while Loading, read by the audio thread once tracksPending is true.
+    std::array<std::vector<float>, als::kTrackCount> pendingTracks;
+    LoadedTracks pendingLoad;
+    std::atomic<bool> tracksPending{false};
 
     // Goes up each time a clip finishes, read through finishedClips().
     std::atomic<std::uint32_t> clipCount{0};
