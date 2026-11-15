@@ -124,8 +124,11 @@ class MainComponent : public juce::AudioAppComponent, private juce::Timer {
     // writes, the audio thread reads.
     std::array<std::atomic<float>, als::kTrackCount> trackPans{};
 
+    // Whether each track is muted, starting unmuted. The UI writes, the audio thread reads.
+    std::array<std::atomic<bool>, als::kTrackCount> trackMuted{};
+
     // A track's volume and pan gains, eased toward its settings so a change ramps in instead of
-    // clicking. Audio thread only.
+    // clicking. Mute eases the volume gain to silence. Audio thread only.
     struct TrackGains {
         juce::SmoothedValue<float> volume;
         juce::SmoothedValue<float> left;
@@ -142,8 +145,8 @@ class MainComponent : public juce::AudioAppComponent, private juce::Timer {
     std::uint32_t waveformClip = 0;
     std::int64_t waveformLoopLength = 0;
 
-    // Points each track's gains at its lane's latest volume and pan, which they ease toward over
-    // the next block. Audio thread only.
+    // Points each track's gains at its lane's latest volume, pan, and mute, which they ease toward
+    // over the next block. Audio thread only.
     void updateGainTargets();
 
     // Mixes every audible track into `left` and `right` for the `sampleCount` samples from

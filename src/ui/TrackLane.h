@@ -44,7 +44,7 @@ class TrackLane : public juce::Component {
     void setLevel(float level);
 
     // Puts volume, pan, mute, reverse, and slip back to their defaults, for a newly loaded loop.
-    // The volume and pan changes are reported through onVolumeChange and onPanChange.
+    // The volume, pan, and mute changes are reported through their change callbacks.
     void resetSettings();
 
     // Called when the lane's delete button is clicked.
@@ -55,6 +55,9 @@ class TrackLane : public juce::Component {
 
     // Called with the new pan, from -1 for full left to 1 for full right, when the pan knob moves.
     std::function<void(float)> onPanChange;
+
+    // Called with whether the track is now muted, when the mute button is toggled.
+    std::function<void(bool)> onMuteChange;
 
   private:
     // Samples per point in the thumbnail, enough detail for a lane's width.

@@ -67,6 +67,11 @@ TrackLane::TrackLane(int trackNumber)
     // When toggled on, mute turns yellow and reverse turns blue.
     muteButton.setClickingTogglesState(true);
     muteButton.setColour(juce::TextButton::buttonOnColourId, palette::mute);
+    muteButton.onClick = [this]() {
+        if (onMuteChange) {
+            onMuteChange(muteButton.getToggleState());
+        }
+    };
     reverseButton.setClickingTogglesState(true);
     reverseButton.setColour(juce::TextButton::buttonOnColourId, palette::reverse);
 
@@ -228,7 +233,7 @@ void TrackLane::resetSettings() {
     // Sent, so the mixer and the pan label follow.
     volumeSlider.setValue(kDefaultVolume, juce::sendNotificationSync);
     panSlider.setValue(kCentrePan, juce::sendNotificationSync);
-    muteButton.setToggleState(false, juce::dontSendNotification);
+    muteButton.setToggleState(false, juce::sendNotificationSync);
     reverseButton.setToggleState(false, juce::dontSendNotification);
     nudgeSlip(-slipOffsetMs); // back to 0 ms
 }

@@ -19,15 +19,12 @@ void MainComponent::prepareToPlay(int /*samplesPerBlockExpected*/, double sample
 
     // Starts each track at its current settings, so playback doesn't ramp in from silence.
     if (sampleRate > 0.0) {
-        for (std::size_t track = 0; track < als::kTrackCount; ++track) {
-            const als::PanGains pan = als::panGains(trackPans[track]);
-            TrackGains& gains = trackGains[track];
+        updateGainTargets();
+        for (TrackGains& gains : trackGains) {
+            // A reset also jumps each gain straight to the target just set.
             gains.volume.reset(sampleRate, kGainRampSeconds);
-            gains.volume.setCurrentAndTargetValue(trackVolumes[track]);
             gains.left.reset(sampleRate, kGainRampSeconds);
-            gains.left.setCurrentAndTargetValue(pan.left);
             gains.right.reset(sampleRate, kGainRampSeconds);
-            gains.right.setCurrentAndTargetValue(pan.right);
         }
     }
 
@@ -183,7 +180,7 @@ void MainComponent::getNextAudioBlock(const juce::AudioSourceChannelInfo& buffer
 void MainComponent::updateGainTargets() {
     for (std::size_t track = 0; track < als::kTrackCount; ++track) {
         const als::PanGains pan = als::panGains(trackPans[track]);
-        trackGains[track].volume.setTargetValue(trackVolumes[track]);
+        trackGains[track].volume.setTargetValue(trackMuted[track] ? 0.0f : trackVolumes[track]);
         trackGains[track].left.setTargetValue(pan.left);
         trackGains[track].right.setTargetValue(pan.right);
     }
@@ -210,7 +207,7 @@ void MainComponent::mixTracks(const als::LoopTiming& timing, std::int64_t blockS
             const float leftGain = trackGains[track].left.getNextValue();
             const float rightGain = trackGains[track].right.getNextValue();
 
-            // Skip muted track
+            // Skip a track that isn't playing. Mute is handled by the volume gain above.
             if (!loopController->audible(track, now)) {
                 continue;
             }

@@ -79,10 +79,11 @@ MainComponent::MainComponent() {
     track3.onDelete = [this]() { deleteClip(2); };
     track4.onDelete = [this]() { deleteClip(3); };
 
-    // The mixer eases each track toward its lane's volume and pan.
+    // The mixer eases each track toward its lane's volume, pan, and mute.
     for (std::size_t track = 0; track < lanes.size(); ++track) {
         lanes[track]->onVolumeChange = [this, track](float gain) { trackVolumes[track] = gain; };
         lanes[track]->onPanChange = [this, track](float pan) { trackPans[track] = pan; };
+        lanes[track]->onMuteChange = [this, track](bool muted) { trackMuted[track] = muted; };
     }
 
     // Audio button 'clicked' functions defined in src/audio/MainComponentAudio.cpp
