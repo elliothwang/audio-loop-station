@@ -76,7 +76,8 @@ TrackLane::TrackLane(int trackNumber)
     reverseButton.setColour(juce::TextButton::buttonOnColourId, palette::reverse);
 
     reverseButton.onClick = [this]() {
-        // JUCE will change state before running this onClick function. Will read new reverse state and pass value to callback.
+        // JUCE will change state before running this onClick function. Will read new reverse state
+        // and pass value to callback.
         if (onReverseChange) {
             onReverseChange(reverseButton.getToggleState());
         }

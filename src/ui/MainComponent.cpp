@@ -166,7 +166,7 @@ void MainComponent::updateWaveform(AudioRecorder::RecordingState recorderState) 
     // Only redraw waveforms if audio changed, there is new loop length, or reverse settings change.
     if (recorderState != AudioRecorder::RecordingState::Ready ||
         (finished == waveformClip && loopLength == waveformLoopLength &&
-        !waveformSettingsChanged)) {
+         !waveformSettingsChanged)) {
         return;
     }
 
@@ -204,8 +204,9 @@ void MainComponent::updateWaveform(AudioRecorder::RecordingState recorderState) 
         const bool reversed = trackReversed[track].load();
 
         for (std::size_t i = 0; i < clip.size() && i < length; ++i) {
-            // Place each sample where it plays in the shared loop with wrapping as needed. Reverse setting will mirror position in loop.
-            // Start is when Record pressed for that track within the shared loop.
+            // Place each sample where it plays in the shared loop with wrapping as needed. Reverse
+            // setting will mirror position in loop. Start is when Record pressed for that track
+            // within the shared loop.
             const std::size_t offset = reversed ? length - 1 - i : i;
             aligned[(start + offset) % length] = clip[i];
         }
