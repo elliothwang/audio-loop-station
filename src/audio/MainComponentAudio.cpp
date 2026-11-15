@@ -76,6 +76,7 @@ void MainComponent::getNextAudioBlock(const juce::AudioSourceChannelInfo& buffer
                 }
 
                 trackStartPositions[command.track] = 0;
+                trackReversed[command.track].store(false);   // Replacement recording should start with reverse off.
             }
 
             *loopController = next;
@@ -191,6 +192,13 @@ void MainComponent::mixTracks(const als::LoopTiming& timing, std::int64_t blockS
     jassert(loopController.has_value());
     updateGainTargets();
 
+    // REV setting read once and stays consistent through this audio block
+    std::array<bool, als::kTrackCount> reversed{};
+
+    for (std::size_t track = 0; track < als::kTrackCount; ++track) {
+        reversed[track] = trackReversed[track].load();
+    }
+
     std::array<float, als::kTrackCount>
         blockTrackPeaks{}; // holds loudest sample of each track per block
     for (int i = 0; i < sampleCount; ++i) {
@@ -214,12 +222,9 @@ void MainComponent::mixTracks(const als::LoopTiming& timing, std::int64_t blockS
 
             // Converts loop position to index in track's buffer.
             const auto takeStart = trackStartPositions[track].load();
-            auto index = position - takeStart;
 
-            // Wrap negative index
-            if (index < 0) {
-                index += timing.length;
-            }
+            // Subtrack start position to align with shared loop. trackReadIndex wraps and if REV is on with read backwards.
+            const auto index = als::trackReadIndex(position - takeStart, timing.length, 0, reversed[track]);
 
             // Add each track's contribution to the mix & track its peak, after volume and
             // before pan so the meter follows the volume slider
