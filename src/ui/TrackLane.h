@@ -43,6 +43,9 @@ class TrackLane : public juce::Component {
     // Shows a level from 0 to 1 in the lane's meter.
     void setLevel(float level);
 
+    // Update REV button
+    void setReversed(bool reversed);
+
     // Puts volume, pan, mute, reverse, and slip back to their defaults, for a newly loaded loop.
     // The volume, pan, and mute changes are reported through their change callbacks.
     void resetSettings();
@@ -58,6 +61,9 @@ class TrackLane : public juce::Component {
 
     // Called with whether the track is now muted, when the mute button is toggled.
     std::function<void(bool)> onMuteChange;
+
+    // Called to report whether a lane's Reverse button is on or off.
+    std::function<void(bool)> onReverseChange;
 
   private:
     // Samples per point in the thumbnail, enough detail for a lane's width.

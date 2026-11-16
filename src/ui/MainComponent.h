@@ -127,6 +127,10 @@ class MainComponent : public juce::AudioAppComponent, private juce::Timer {
     // Whether each track is muted, starting unmuted. The UI writes, the audio thread reads.
     std::array<std::atomic<bool>, als::kTrackCount> trackMuted{};
 
+    // Tracks start with reverse off. Audio thread will read it when choosing playback sample
+    // positions.
+    std::array<std::atomic<bool>, als::kTrackCount> trackReversed{};
+
     // A track's volume and pan gains, eased toward its settings so a change ramps in instead of
     // clicking. Mute eases the volume gain to silence. Audio thread only.
     struct TrackGains {
@@ -144,6 +148,7 @@ class MainComponent : public juce::AudioAppComponent, private juce::Timer {
     // The finished clip count the waveform was last drawn for. Message thread.
     std::uint32_t waveformClip = 0;
     std::int64_t waveformLoopLength = 0;
+    bool waveformSettingsChanged = false; // UI thread, reverse requires waveform redraw
 
     // Points each track's gains at its lane's latest volume, pan, and mute, which they ease toward
     // over the next block. Audio thread only.

@@ -79,11 +79,15 @@ MainComponent::MainComponent() {
     track3.onDelete = [this]() { deleteClip(2); };
     track4.onDelete = [this]() { deleteClip(3); };
 
-    // The mixer eases each track toward its lane's volume, pan, and mute.
+    // The mixer eases each track toward its lane's volume, pan, reverse status, and mute.
     for (std::size_t track = 0; track < lanes.size(); ++track) {
         lanes[track]->onVolumeChange = [this, track](float gain) { trackVolumes[track] = gain; };
         lanes[track]->onPanChange = [this, track](float pan) { trackPans[track] = pan; };
         lanes[track]->onMuteChange = [this, track](bool muted) { trackMuted[track] = muted; };
+        lanes[track]->onReverseChange = [this, track](bool reversed) {
+            trackReversed[track].store(reversed);
+            waveformSettingsChanged = true;
+        };
     }
 
     // Audio button 'clicked' functions defined in src/audio/MainComponentAudio.cpp
@@ -121,6 +125,7 @@ void MainComponent::timerCallback() {
     for (std::size_t i = 0; i < lanes.size(); ++i) {
         lanes[i]->setState(controllerSnapshot.track(i));
         lanes[i]->setLevel(trackPeaks[i].exchange(0.0f));
+        lanes[i]->setReversed(trackReversed[i].load());
     }
 
     updateWaveform(recorderState);
@@ -158,9 +163,10 @@ void MainComponent::updateWaveform(AudioRecorder::RecordingState recorderState) 
     }
     const auto loopLength = controllerSnapshot.loopLength();
 
-    // Only redraw waveforms if audio changed or there is new loop length.
+    // Only redraw waveforms if audio changed, there is new loop length, or reverse settings change.
     if (recorderState != AudioRecorder::RecordingState::Ready ||
-        (finished == waveformClip && loopLength == waveformLoopLength)) {
+        (finished == waveformClip && loopLength == waveformLoopLength &&
+         !waveformSettingsChanged)) {
         return;
     }
 
@@ -174,6 +180,7 @@ void MainComponent::updateWaveform(AudioRecorder::RecordingState recorderState) 
 
     waveformClip = finished;
     waveformLoopLength = loopLength;
+    waveformSettingsChanged = false;
 
     for (std::size_t track = 0; track < lanes.size(); ++track) {
         auto& clip = samples[track];
@@ -194,10 +201,14 @@ void MainComponent::updateWaveform(AudioRecorder::RecordingState recorderState) 
         // Start full loop of silence with samples set to 0.
         std::vector<float> aligned(length, 0.0f);
 
+        const bool reversed = trackReversed[track].load();
+
         for (std::size_t i = 0; i < clip.size() && i < length; ++i) {
-            // Place each sample where it plays in the shared loop with wrapping as needed. Start is
-            // when Record pressed for that track within the shared loop.
-            aligned[(start + i) % length] = clip[i];
+            // Place each sample where it plays in the shared loop with wrapping as needed. Reverse
+            // setting will mirror position in loop. Start is when Record pressed for that track
+            // within the shared loop.
+            const std::size_t offset = reversed ? length - 1 - i : i;
+            aligned[(start + offset) % length] = clip[i];
         }
 
         // Setwaveform expects Juce buffer, wrap samples so no need to copy again.

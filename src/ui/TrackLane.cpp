@@ -75,6 +75,14 @@ TrackLane::TrackLane(int trackNumber)
     reverseButton.setClickingTogglesState(true);
     reverseButton.setColour(juce::TextButton::buttonOnColourId, palette::reverse);
 
+    reverseButton.onClick = [this]() {
+        // JUCE will change state before running this onClick function. Will read new reverse state
+        // and pass value to callback.
+        if (onReverseChange) {
+            onReverseChange(reverseButton.getToggleState());
+        }
+    };
+
     const juce::String track = "track " + juce::String(trackNumber);
     nameButton(muteButton, "Mute " + track);
     nameButton(reverseButton, "Reverse " + track);
@@ -229,12 +237,17 @@ void TrackLane::setLevel(float level) {
     meter.setLevel(level);
 }
 
+void TrackLane::setReversed(bool reversed) {
+    // Setting will have already changed. Just update the button's appearance.
+    reverseButton.setToggleState(reversed, juce::dontSendNotification);
+}
+
 void TrackLane::resetSettings() {
     // Sent, so the mixer and the pan label follow.
     volumeSlider.setValue(kDefaultVolume, juce::sendNotificationSync);
     panSlider.setValue(kCentrePan, juce::sendNotificationSync);
     muteButton.setToggleState(false, juce::sendNotificationSync);
-    reverseButton.setToggleState(false, juce::dontSendNotification);
+    reverseButton.setToggleState(false, juce::sendNotificationSync);
     nudgeSlip(-slipOffsetMs); // back to 0 ms
 }
 
