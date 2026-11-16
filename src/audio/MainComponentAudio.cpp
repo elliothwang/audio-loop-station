@@ -79,6 +79,8 @@ void MainComponent::getNextAudioBlock(const juce::AudioSourceChannelInfo& buffer
                 trackStartPositions[command.track] = 0;
                 trackReversed[command.track].store(
                     false); // Replacement recording should start with reverse off.
+                trackSlips[command.track].store(
+                    0); // Replacement recording should start with 0 slip
             }
 
             *loopController = next;
@@ -197,15 +199,12 @@ void MainComponent::mixTracks(const als::LoopTiming& timing, std::int64_t blockS
     // REV setting read once and stays consistent through this audio block
     std::array<bool, als::kTrackCount> reversed{};
 
+    // Each slip read & translated to samples once per block
+    std::array<std::int64_t, als::kTrackCount> slipSamples{};
+
     for (std::size_t track = 0; track < als::kTrackCount; ++track) {
         reversed[track] = trackReversed[track].load();
-    }
-
-    // Convert each tracks slipOffset from ms to samples
-    std::array<std::int64_t, als::kTrackCount> slipSamples{};
-    for (std::size_t track = 0; track < als::kTrackCount; ++track) {
-        slipSamples[track] = als::millisecondsToSamples(
-            trackSlips[track].load(), audioSampleRate);
+        slipSamples[track] = als::millisecondsToSamples(trackSlips[track].load(), audioSampleRate);
     }
 
     std::array<float, als::kTrackCount>
@@ -234,8 +233,8 @@ void MainComponent::mixTracks(const als::LoopTiming& timing, std::int64_t blockS
 
             // Subtrack start position to align with shared loop. trackReadIndex wraps and if REV is
             // on with read backwards.
-            const auto index =
-                als::trackReadIndex(position - takeStart, timing.length, 0, reversed[track]);
+            const auto index = als::trackReadIndex(position - takeStart, timing.length,
+                                                   slipSamples[track], reversed[track]);
 
             // Add each track's contribution to the mix & track its peak, after volume and
             // before pan so the meter follows the volume slider
