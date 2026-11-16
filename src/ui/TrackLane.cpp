@@ -242,21 +242,38 @@ void TrackLane::setReversed(bool reversed) {
     reverseButton.setToggleState(reversed, juce::dontSendNotification);
 }
 
+void TrackLane::setSlip(int slipOffset) {
+    // Slip reset by other source, sync it here & update label
+    slipOffsetMs = slipOffset;
+    updateSlipLabel(slipOffset);
+}
+
 void TrackLane::resetSettings() {
     // Sent, so the mixer and the pan label follow.
     volumeSlider.setValue(kDefaultVolume, juce::sendNotificationSync);
     panSlider.setValue(kCentrePan, juce::sendNotificationSync);
     muteButton.setToggleState(false, juce::sendNotificationSync);
     reverseButton.setToggleState(false, juce::sendNotificationSync);
-    nudgeSlip(-slipOffsetMs); // back to 0 ms
+    setSlip(0); // update the lane's value and label
+    if (onSlipChange) {
+        onSlipChange(0); // synchronously tell MainComponent
+    }
 }
 
 void TrackLane::nudgeSlip(int deltaMs) {
     slipOffsetMs += deltaMs;
 
+    if (onSlipChange) {
+        onSlipChange(static_cast<int>(slipOffsetMs));
+    }
+
+    updateSlipLabel(slipOffsetMs);
+}
+
+void TrackLane::updateSlipLabel(int slipOffset) {
     // Show a sign on later offsets too, so +10 and -10 are easy to tell apart.
-    const juce::String sign = slipOffsetMs > 0 ? "+" : "";
-    slipOffsetLabel.setText(sign + juce::String(slipOffsetMs) + " ms", juce::dontSendNotification);
+    const juce::String sign = slipOffset > 0 ? "+" : "";
+    slipOffsetLabel.setText(sign + juce::String(slipOffset) + " ms", juce::dontSendNotification);
 }
 
 void TrackLane::updatePanLabel() {

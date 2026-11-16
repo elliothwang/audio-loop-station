@@ -140,6 +140,12 @@ class MainComponent : public juce::AudioAppComponent, private juce::Timer {
     };
     std::array<TrackGains, als::kTrackCount> trackGains;
 
+    // Each tracks slip offset in ms, UI writes, audio thread reads.
+    std::array<std::atomic<int>, als::kTrackCount> trackSlips{};
+
+    // Sample rate passed in from prepareToPlay() call, needed for slipMs -> samples
+    double audioSampleRate = 0.0;
+
     // The finished clip count as of the last snapshot publish. Until it matches finishedClips(),
     // the take starts and loop length for the newest clip may not be written yet. Audio thread
     // writes.
@@ -148,7 +154,7 @@ class MainComponent : public juce::AudioAppComponent, private juce::Timer {
     // The finished clip count the waveform was last drawn for. Message thread.
     std::uint32_t waveformClip = 0;
     std::int64_t waveformLoopLength = 0;
-    bool waveformSettingsChanged = false; // UI thread, reverse requires waveform redraw
+    bool waveformSettingsChanged = false; // UI thread, reverse or slip requires waveform redraw
 
     // Points each track's gains at its lane's latest volume, pan, and mute, which they ease toward
     // over the next block. Audio thread only.
