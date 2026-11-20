@@ -1,6 +1,7 @@
 #pragma once
 
 #include "MainComponent.h"
+#include "core/LoopPlayback.h"
 #include "core/PanLaw.h"
 #include <juce_audio_utils/juce_audio_utils.h>
 
@@ -9,6 +10,7 @@
 namespace {
 
 constexpr double kGainRampSeconds = 0.02; // [s], long enough that a control change won't click
+constexpr int edgeGainMilliseconds = 5;   // [ms] at each end of the loop, so the wrap doesn't click
 
 } // namespace
 
@@ -16,7 +18,6 @@ constexpr double kGainRampSeconds = 0.02; // [s], long enough that a control cha
 void MainComponent::prepareToPlay(int /*samplesPerBlockExpected*/, double sampleRate) {
     audioSampleRate = sampleRate;
     audioRecorder.prepare(sampleRate);
-    loopPlayer.prepare(sampleRate);
 
     // Starts each track at its current settings, so playback doesn't ramp in from silence.
     if (sampleRate > 0.0) {
@@ -122,8 +123,6 @@ void MainComponent::getNextAudioBlock(const juce::AudioSourceChannelInfo& buffer
 
     // A load replaced every track this block, so each take's start and the loop come from it.
     if (loaded.has_value()) {
-        loopPlayer.stop();
-
         for (std::size_t track = 0; track < als::kTrackCount; ++track) {
             trackStartPositions[track] = loaded->starts[track];
         }
@@ -196,6 +195,10 @@ void MainComponent::mixTracks(const als::LoopTiming& timing, std::int64_t blockS
     jassert(loopController.has_value());
     updateGainTargets();
 
+    const std::size_t loopLength = static_cast<std::size_t>(timing.length);
+    const std::size_t fadeLength =
+        static_cast<std::size_t>(audioSampleRate * edgeGainMilliseconds / 1000.0);
+
     // REV setting read once and stays consistent through this audio block
     std::array<bool, als::kTrackCount> reversed{};
 
@@ -236,9 +239,12 @@ void MainComponent::mixTracks(const als::LoopTiming& timing, std::int64_t blockS
             const auto index = als::trackReadIndex(position - takeStart, timing.length,
                                                    slipSamples[track], reversed[track]);
 
+            const float edge = als::edgeGain(index, loopLength, fadeLength);
+
             // Add each track's contribution to the mix & track its peak, after volume and
             // before pan so the meter follows the volume slider
-            const float sample = audioRecorder.sampleAt(track, static_cast<int>(index)) * volume;
+            const float sample =
+                audioRecorder.sampleAt(track, static_cast<int>(index)) * volume * edge;
             blockTrackPeaks[track] = std::max(blockTrackPeaks[track], std::abs(sample));
             mixedLeft += sample * leftGain;
             mixedRight += sample * rightGain;

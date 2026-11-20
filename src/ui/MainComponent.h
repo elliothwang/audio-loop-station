@@ -11,7 +11,6 @@
 #include "TransportBar.h"
 #include "core/ControllerSnapshot.h"
 #include "core/LoopController.h"
-#include "core/LoopPlayer.h"
 #include "core/SampleClock.h"
 #include "storage/LoopFile.h"
 #include <juce_audio_utils/juce_audio_utils.h>
@@ -99,7 +98,6 @@ class MainComponent : public juce::AudioAppComponent, private juce::Timer {
 
     // ----- Audio, needs declared here -----
     AudioRecorder audioRecorder;
-    als::LoopPlayer loopPlayer;                 // plays the recorded clip
     als::AudioCommandQueue commandQueue;        // UI will send commands to audio thread
     als::SampleClock sampleClock;               // Clock to track processed samples
     als::ControllerSnapshot controllerSnapshot; // Snapshot will provide state for UI to access
