@@ -129,15 +129,16 @@ class MainComponent : public juce::AudioAppComponent, private juce::Timer {
     // positions.
     std::array<std::atomic<bool>, als::kTrackCount> trackReversed{};
 
-    // Used to delay reverse and ramp a track down to mute before switching directions
-    // activeReversed determines if samples are read forward or backward
-    struct TrackReverseFade {
+    // Ramps a track to silence before applying playback direction or slip changes.
+    struct TrackPlaybackFade {
         enum class Phase { Steady, FadeOut, FadeIn };
+
         bool activeReversed = false;
+        std::int64_t activeSlipSamples = 0;
         Phase phase = Phase::Steady;
         juce::SmoothedValue<float> gain;
     };
-    std::array<TrackReverseFade, als::kTrackCount> trackReverseFades{};
+    std::array<TrackPlaybackFade, als::kTrackCount> trackPlaybackFades{};
 
     // A track's volume and pan gains, eased toward its settings so a change ramps in instead of
     // clicking. Mute eases the volume gain to silence. Audio thread only.
