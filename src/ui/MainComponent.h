@@ -11,7 +11,6 @@
 #include "TransportBar.h"
 #include "core/ControllerSnapshot.h"
 #include "core/LoopController.h"
-#include "core/LoopPlayer.h"
 #include "core/SampleClock.h"
 #include "storage/LoopFile.h"
 #include <juce_audio_utils/juce_audio_utils.h>
@@ -99,7 +98,6 @@ class MainComponent : public juce::AudioAppComponent, private juce::Timer {
 
     // ----- Audio, needs declared here -----
     AudioRecorder audioRecorder;
-    als::LoopPlayer loopPlayer;                 // plays the recorded clip
     als::AudioCommandQueue commandQueue;        // UI will send commands to audio thread
     als::SampleClock sampleClock;               // Clock to track processed samples
     als::ControllerSnapshot controllerSnapshot; // Snapshot will provide state for UI to access
@@ -130,6 +128,17 @@ class MainComponent : public juce::AudioAppComponent, private juce::Timer {
     // Tracks start with reverse off. Audio thread will read it when choosing playback sample
     // positions.
     std::array<std::atomic<bool>, als::kTrackCount> trackReversed{};
+
+    // Ramps a track to silence before applying playback direction or slip changes.
+    struct TrackPlaybackFade {
+        enum class Phase { Steady, FadeOut, FadeIn };
+
+        bool activeReversed = false;
+        std::int64_t activeSlipSamples = 0;
+        Phase phase = Phase::Steady;
+        juce::SmoothedValue<float> gain;
+    };
+    std::array<TrackPlaybackFade, als::kTrackCount> trackPlaybackFades{};
 
     // A track's volume and pan gains, eased toward its settings so a change ramps in instead of
     // clicking. Mute eases the volume gain to silence. Audio thread only.

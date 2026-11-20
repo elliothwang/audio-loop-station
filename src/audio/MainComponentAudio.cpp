@@ -1,6 +1,7 @@
 #pragma once
 
 #include "MainComponent.h"
+#include "core/LoopPlayback.h"
 #include "core/PanLaw.h"
 #include <juce_audio_utils/juce_audio_utils.h>
 
@@ -9,6 +10,7 @@
 namespace {
 
 constexpr double kGainRampSeconds = 0.02; // [s], long enough that a control change won't click
+constexpr int edgeGainMilliseconds = 5;   // [ms] at each end of the loop, so the wrap doesn't click
 
 } // namespace
 
@@ -16,7 +18,6 @@ constexpr double kGainRampSeconds = 0.02; // [s], long enough that a control cha
 void MainComponent::prepareToPlay(int /*samplesPerBlockExpected*/, double sampleRate) {
     audioSampleRate = sampleRate;
     audioRecorder.prepare(sampleRate);
-    loopPlayer.prepare(sampleRate);
 
     // Starts each track at its current settings, so playback doesn't ramp in from silence.
     if (sampleRate > 0.0) {
@@ -26,6 +27,16 @@ void MainComponent::prepareToPlay(int /*samplesPerBlockExpected*/, double sample
             gains.volume.reset(sampleRate, kGainRampSeconds);
             gains.left.reset(sampleRate, kGainRampSeconds);
             gains.right.reset(sampleRate, kGainRampSeconds);
+        }
+
+        for (std::size_t track = 0; track < als::kTrackCount; ++track) {
+            auto& playbackFade = trackPlaybackFades[track];
+            playbackFade.activeReversed = trackReversed[track].load();
+            playbackFade.activeSlipSamples =
+                als::millisecondsToSamples(trackSlips[track].load(), sampleRate);
+            playbackFade.phase = TrackPlaybackFade::Phase::Steady;
+            playbackFade.gain.reset(sampleRate, kGainRampSeconds);
+            playbackFade.gain.setCurrentAndTargetValue(1.0f);
         }
     }
 
@@ -77,10 +88,16 @@ void MainComponent::getNextAudioBlock(const juce::AudioSourceChannelInfo& buffer
                 }
 
                 trackStartPositions[command.track] = 0;
-                trackReversed[command.track].store(
-                    false); // Replacement recording should start with reverse off.
                 trackSlips[command.track].store(
                     0); // Replacement recording should start with 0 slip
+
+                // Replacement recording should start with reverse off.
+                trackReversed[command.track].store(false);
+                auto& playbackFade = trackPlaybackFades[command.track];
+                playbackFade.activeReversed = false;
+                playbackFade.activeSlipSamples = 0;
+                playbackFade.phase = TrackPlaybackFade::Phase::Steady;
+                playbackFade.gain.setCurrentAndTargetValue(1.0f);
             }
 
             *loopController = next;
@@ -122,8 +139,6 @@ void MainComponent::getNextAudioBlock(const juce::AudioSourceChannelInfo& buffer
 
     // A load replaced every track this block, so each take's start and the loop come from it.
     if (loaded.has_value()) {
-        loopPlayer.stop();
-
         for (std::size_t track = 0; track < als::kTrackCount; ++track) {
             trackStartPositions[track] = loaded->starts[track];
         }
@@ -196,6 +211,10 @@ void MainComponent::mixTracks(const als::LoopTiming& timing, std::int64_t blockS
     jassert(loopController.has_value());
     updateGainTargets();
 
+    const std::size_t loopLength = static_cast<std::size_t>(timing.length);
+    const std::size_t fadeLength =
+        static_cast<std::size_t>(audioSampleRate * edgeGainMilliseconds / 1000.0);
+
     // REV setting read once and stays consistent through this audio block
     std::array<bool, als::kTrackCount> reversed{};
 
@@ -223,22 +242,54 @@ void MainComponent::mixTracks(const als::LoopTiming& timing, std::int64_t blockS
             const float leftGain = trackGains[track].left.getNextValue();
             const float rightGain = trackGains[track].right.getNextValue();
 
-            // Skip a track that isn't playing. Mute is handled by the volume gain above.
+            auto& playbackFade = trackPlaybackFades[track];
+
+            // A silent track can adopt reversal or slip changes without fading.
             if (!loopController->audible(track, now)) {
+                playbackFade.activeReversed = reversed[track];
+                playbackFade.activeSlipSamples = slipSamples[track];
+                playbackFade.phase = TrackPlaybackFade::Phase::Steady;
+                playbackFade.gain.setCurrentAndTargetValue(1.0f);
                 continue;
+            }
+
+            // Fade before reversing or slipping to avoid audible clicks.
+            if (playbackFade.phase == TrackPlaybackFade::Phase::Steady &&
+                (reversed[track] != playbackFade.activeReversed ||
+                 slipSamples[track] != playbackFade.activeSlipSamples)) {
+                playbackFade.phase = TrackPlaybackFade::Phase::FadeOut;
+                playbackFade.gain.setTargetValue(0.0f);
             }
 
             // Converts loop position to index in track's buffer.
             const auto takeStart = trackStartPositions[track].load();
 
             // Subtrack start position to align with shared loop. trackReadIndex wraps and if REV is
-            // on with read backwards.
-            const auto index = als::trackReadIndex(position - takeStart, timing.length,
-                                                   slipSamples[track], reversed[track]);
+            // on with read backwards. Settings switch after the fade-out reaches silence.
+            const auto index =
+                als::trackReadIndex(position - takeStart, timing.length,
+                                    playbackFade.activeSlipSamples, playbackFade.activeReversed);
+
+            const float edge = als::edgeGain(index, loopLength, fadeLength);
+            const float playbackGain = playbackFade.gain.getNextValue();
 
             // Add each track's contribution to the mix & track its peak, after volume and
             // before pan so the meter follows the volume slider
-            const float sample = audioRecorder.sampleAt(track, static_cast<int>(index)) * volume;
+            const float sample = audioRecorder.sampleAt(track, static_cast<int>(index)) * volume *
+                                 edge * playbackGain;
+
+            // Reverse or slip once the fade-out reaches silence.
+            if (playbackFade.phase == TrackPlaybackFade::Phase::FadeOut &&
+                !playbackFade.gain.isSmoothing()) {
+                playbackFade.activeReversed = reversed[track];
+                playbackFade.activeSlipSamples = slipSamples[track];
+                playbackFade.phase = TrackPlaybackFade::Phase::FadeIn;
+                playbackFade.gain.setTargetValue(1.0f);
+            } else if (playbackFade.phase == TrackPlaybackFade::Phase::FadeIn &&
+                       !playbackFade.gain.isSmoothing()) {
+                playbackFade.phase = TrackPlaybackFade::Phase::Steady;
+            }
+
             blockTrackPeaks[track] = std::max(blockTrackPeaks[track], std::abs(sample));
             mixedLeft += sample * leftGain;
             mixedRight += sample * rightGain;
