@@ -5,6 +5,10 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+# Links the C++ runtime into the exe, so it runs without the Visual C++ Redistributable. Set before
+# JUCE and Catch2 are added, since every target has to use the same runtime to link.
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+
 include(FetchContent)
 
 FetchContent_Declare(
