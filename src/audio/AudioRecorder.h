@@ -11,15 +11,7 @@
 
 class AudioRecorder {
   public:
-    enum class RecordingState {
-        Idle,
-        StartRequested,
-        Recording,
-        StopRequested,
-        Ready,
-        Saving,
-        Loading
-    };
+    enum class RecordingState { Idle, Recording, Ready, Saving, Loading };
     // What a load put in the tracks, so the audio thread can restart the loop around them.
     struct LoadedTracks {
         std::int64_t loopLength = 0;                         // [samples]
@@ -32,8 +24,6 @@ class AudioRecorder {
     AudioRecorder& operator=(const AudioRecorder&) = delete;
 
     void prepare(double sampleRate); // allocate buffer amount, kept on a restart at the same rate
-    bool requestStart();             // returned boolean will indicate if request accepted
-    bool requestStop();
     // Records input and applies a pending load. Returns what was loaded on the block a load is
     // copied in, and nullopt otherwise.
     std::optional<LoadedTracks> processInput(const float* inputSamples, int sampleCount);
@@ -58,14 +48,6 @@ class AudioRecorder {
     // clip, even when the state went back to Ready between two reads.
     [[nodiscard]] std::uint32_t finishedClips() const noexcept;
 
-    // Returns the finished clip's samples, or null if there's no buffer. Audio thread only, since
-    // the recorder writes the clip there.
-    [[nodiscard]] const float* clip() const noexcept;
-
-    // Returns the finished clip's length in samples, or 0 while recording or before a clip exists.
-    // Audio thread only.
-    [[nodiscard]] std::size_t clipLength() const noexcept;
-
     // Buffer capacity in samples. This will be read when audio processing stopped.
     [[nodiscard]] int capacity() const noexcept {
         return tracks.capacity();
@@ -74,8 +56,6 @@ class AudioRecorder {
     // Track storage operations. Audio thread only.
     void clearTrack(std::size_t track) noexcept;
     [[nodiscard]] bool tryDeleteTrack(std::size_t track) noexcept; // Returns false if recorder busy
-    [[nodiscard]] int appendToTrack(std::size_t track, const float* inputSamples,
-                                    int sampleCount) noexcept;
     [[nodiscard]] float sampleAt(std::size_t track, int position) const noexcept;
 
     // Audio thread - Recorder claimed before writing to track selected.
@@ -93,8 +73,6 @@ class AudioRecorder {
 
     double recordingSampleRate = 0.0; // store rate, needed to interpret and save recorded sample
     static constexpr int maximumRecordingSeconds = 60; // capacity limit, can change
-
-    bool captureActive = false; // Used by audio thread
 
     // Copies pending tracks into the buffers and finishes the load. Audio thread, while Loading.
     std::optional<LoadedTracks> applyPendingTracks() noexcept;

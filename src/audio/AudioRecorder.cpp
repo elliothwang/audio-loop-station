@@ -12,7 +12,6 @@ void AudioRecorder::prepare(double sampleRate) {
     }
 
     recordingSampleRate = 0.0;
-    captureActive = false;
     tracksPending.store(false); // pending tracks no longer match the new rate
     state.store(RecordingState::Idle);
 
@@ -31,80 +30,23 @@ void AudioRecorder::prepare(double sampleRate) {
     recordingSampleRate = sampleRate; // store sample rate
 }
 
-bool AudioRecorder::requestStart() {
-    auto expected = state.load(); // current state into [expected]
-
-    if (expected != RecordingState::Idle && expected != RecordingState::Ready) {
-        return false; // if recorder not idle or is not Ready. Can't start again if already
-                      // recording.
-    }
-
-    // Check state still equal with expected. State may have changed from another thread.
-    return state.compare_exchange_strong(expected, RecordingState::StartRequested);
-}
-
-bool AudioRecorder::requestStop() {
-    auto expected = state.load(); // Read current state
-
-    // Keep trying if start pending or if recording occurring.
-    while (expected == RecordingState::StartRequested || expected == RecordingState::Recording) {
-        if (state.compare_exchange_weak(expected, RecordingState::StopRequested)) {
-            return true; // return True if successfully change state to StopRequested
-        }
-    }
-
-    return false;
-}
-
 std::optional<AudioRecorder::LoadedTracks> AudioRecorder::processInput(
     const float* inputSamples,
     int sampleCount) // point to microphone samples, how many samples available
 {
-    auto currentState = state.load(); // Get current state
+    const auto currentState = state.load(); // Get current state
 
     // Loads are applied here, so the buffers are only written on the audio thread.
     if (currentState == RecordingState::Loading) {
         return applyPendingTracks();
     }
 
-    if (currentState == RecordingState::StartRequested) // Check if recording requested from UI
-    {
-        auto expected = RecordingState::StartRequested;
-
-        if (state.compare_exchange_strong(
-                expected,
-                RecordingState::Recording)) // Change state to Recording if still StartRequested
-        {
-            activeTrack = 0;
-            tracks.clearTrack(0); // If state changed to recording, buffer write position reset
-                                  // to 0 to overwrite previous
-            captureActive = true;
-        }
-
-        currentState =
-            state.load(); // Reread current state for cases where Stop request may have occurred
-    }
-
-    if (currentState == RecordingState::StopRequested) // Handle if recording Stop requested
-    {
-        if (!captureActive) // Check if audio capture actually started. Case where user presses
-                            // Record then Stop rapidly.
-        {
-            tracks.clearTrack(0);
-        }
-
-        captureActive = false;
-        finishClip(); // State to Ready
-        return std::nullopt;
-    }
-
-    if (currentState != RecordingState::Recording) // Ignore Stop if not recording
+    if (currentState != RecordingState::Recording) // Nothing to capture unless a take is recording
     {
         return std::nullopt;
     }
 
     if (tracks.recordedLength(activeTrack) >= tracks.capacity()) {
-        captureActive = false;
         finishClip();
         return std::nullopt;
     }
@@ -116,7 +58,6 @@ std::optional<AudioRecorder::LoadedTracks> AudioRecorder::processInput(
     const int copied = tracks.appendSamples(activeTrack, inputSamples, sampleCount);
 
     if (copied > 0 && tracks.recordedLength(activeTrack) == tracks.capacity()) {
-        captureActive = false;
         finishClip();
     }
     return std::nullopt;
@@ -146,12 +87,6 @@ bool AudioRecorder::tryDeleteTrack(std::size_t track) noexcept {
     return true;
 }
 
-int AudioRecorder::appendToTrack(std::size_t track, const float* inputSamples,
-                                 int sampleCount) noexcept {
-    // Write samples of microphone to track selected by controller
-    return tracks.appendSamples(track, inputSamples, sampleCount);
-}
-
 float AudioRecorder::sampleAt(std::size_t track, int position) const noexcept {
     // Reads track's audio
     return tracks.sampleAt(track, position);
@@ -170,17 +105,6 @@ std::uint32_t AudioRecorder::finishedClips() const noexcept {
 // Return current snapshot of recorder's state for UI to read
 AudioRecorder::RecordingState AudioRecorder::getState() const noexcept {
     return state.load();
-}
-
-const float* AudioRecorder::clip() const noexcept {
-    return tracks.data(0);
-}
-
-std::size_t AudioRecorder::clipLength() const noexcept {
-    // Saving only reads the clip, so it can still play while it's copied.
-    const auto current = state.load();
-    const bool finished = current == RecordingState::Ready || current == RecordingState::Saving;
-    return finished ? static_cast<std::size_t>(tracks.recordedLength(0)) : 0;
 }
 
 std::optional<AudioRecorder::LoadedTracks> AudioRecorder::applyPendingTracks() noexcept {
@@ -294,13 +218,11 @@ bool AudioRecorder::beginControlledTake(std::size_t track) noexcept {
 
     activeTrack = track;
     tracks.clearTrack(activeTrack);
-    captureActive = true;
     return true;
 }
 
 void AudioRecorder::finishControlledTake() noexcept {
     if (state.load() == RecordingState::Recording) {
-        captureActive = false;
         finishClip();
     }
 }
