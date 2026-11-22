@@ -50,7 +50,7 @@ MainComponent::MainComponent() {
             /*midiInputs*/ false, /*midiOutput*/ false, /*stereoPairs*/ false,
             /*hideAdvanced*/ false);
         selector->setSize(kSettingsWidth, kSettingsHeight);
-        showDialog(std::move(selector), "Settings");
+        settingsDialog = showDialog(std::move(selector), "Settings");
     };
 
     // Load opens and closes the saved loops panel, which starts closed so the lanes get the width.
@@ -114,6 +114,8 @@ MainComponent::MainComponent() {
 
 MainComponent::~MainComponent() {
     stopTimer();
+    // Before the device manager goes, which the Settings dialog still listens to.
+    delete settingsDialog.getComponent();
     shutdownAudio();
     juce::LookAndFeel::setDefaultLookAndFeel(nullptr);
 };
@@ -380,8 +382,8 @@ void MainComponent::showLoopsPanel(bool show) {
     resized();
 }
 
-void MainComponent::showDialog(std::unique_ptr<juce::Component> content,
-                               const juce::String& title) {
+juce::DialogWindow* MainComponent::showDialog(std::unique_ptr<juce::Component> content,
+                                              const juce::String& title) {
     juce::DialogWindow::LaunchOptions options;
     options.content.setOwned(content.release());
     options.dialogTitle = title;
@@ -392,7 +394,7 @@ void MainComponent::showDialog(std::unique_ptr<juce::Component> content,
     options.resizable = false;
 
     // Modal, so nothing behind it can be pressed, but opens without waiting for it to close.
-    options.launchAsync();
+    return options.launchAsync();
 }
 
 juce::Result MainComponent::copyLoop(als::SavedLoop& loop) {

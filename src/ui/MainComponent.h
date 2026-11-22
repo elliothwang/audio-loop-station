@@ -81,9 +81,14 @@ class MainComponent : public juce::AudioAppComponent, private juce::Timer {
     // Opens the saved loops panel with a fresh list, or closes it, and lays the window out again.
     void showLoopsPanel(bool show);
 
-    // Shows `content` in a dialog called `title` over the window. The dialog is modal, but this
-    // returns without waiting for it to close.
-    void showDialog(std::unique_ptr<juce::Component> content, const juce::String& title);
+    // Shows `content` in a dialog called `title` over the window and returns it. The dialog is
+    // modal, but this returns without waiting for it to close.
+    juce::DialogWindow* showDialog(std::unique_ptr<juce::Component> content,
+                                   const juce::String& title);
+
+    // The open Settings dialog, if any. Its device selector listens to deviceManager, so the
+    // destructor closes it rather than let JUCE delete it after this component at shutdown.
+    juce::Component::SafePointer<juce::DialogWindow> settingsDialog;
 
     // Returns true if an audio device is running, or shows `title` with why not and returns false.
     bool audioRunning(const juce::String& title);
