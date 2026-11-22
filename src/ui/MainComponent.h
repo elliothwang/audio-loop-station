@@ -3,6 +3,7 @@
 #include "AudioCommandQueue.h"
 #include "AudioRecorder.h"
 #include "DeviceFooter.h"
+#include "LiveInputQueue.h"
 #include "LoadLoopComponent.h"
 #include "LoopStationLookAndFeel.h"
 #include "Playhead.h"
@@ -99,6 +100,7 @@ class MainComponent : public juce::AudioAppComponent, private juce::Timer {
     // ----- Audio, needs declared here -----
     AudioRecorder audioRecorder;
     als::AudioCommandQueue commandQueue;        // UI will send commands to audio thread
+    als::LiveInputQueue liveInputQueue;         // Audio thread sends the recording take to the UI
     als::SampleClock sampleClock;               // Clock to track processed samples
     als::ControllerSnapshot controllerSnapshot; // Snapshot will provide state for UI to access
     std::optional<als::LoopController>
@@ -174,6 +176,11 @@ class MainComponent : public juce::AudioAppComponent, private juce::Timer {
     // one output and pan is skipped. Audio thread only, and only while loopController is set.
     void mixTracks(const als::LoopTiming& timing, std::int64_t blockStart, int sampleCount,
                    float* left, float* right);
+
+    // Queues the `sampleCount` input samples this block recorded, in chunks that each fit one
+    // thumbnail point, so the UI can draw the take as it records. Drops what doesn't fit while the
+    // UI is behind. Audio thread only, and only while loopController is set.
+    void publishLiveInput(const float* input, int sampleCount);
 
     void playButtonClicked();
     void stopButtonClicked();
