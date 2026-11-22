@@ -196,6 +196,10 @@ void MainComponent::updateWaveform(AudioRecorder::RecordingState recorderState) 
         return;
     }
 
+    // The acquire above means every live chunk of a finished take is queued by now, so drawing them
+    // here keeps any from landing on top of its finished waveform on a later tick.
+    updateLiveWaveform();
+
     std::array<std::vector<float>, als::kTrackCount> samples;
     double sampleRate = 0.0;
 
