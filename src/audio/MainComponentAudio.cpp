@@ -19,6 +19,8 @@ static_assert(als::kLiveInputChunk == TrackLane::kSamplesPerThumbnailPoint,
 
 // Pass sample rate to recorder and player and prepare buffers.
 void MainComponent::prepareToPlay(int /*samplesPerBlockExpected*/, double sampleRate) {
+    // A new rate clears and resizes the recorder's tracks, so the controller has to start over.
+    const bool newRate = sampleRate != audioSampleRate;
     audioSampleRate = sampleRate;
     audioRecorder.prepare(sampleRate);
 
@@ -43,8 +45,9 @@ void MainComponent::prepareToPlay(int /*samplesPerBlockExpected*/, double sample
         }
     }
 
-    // Construct loop controller once, and after recorder has allocated buffer
-    if (!loopController && audioRecorder.capacity() > 0) {
+    // Construct loop controller after recorder has allocated buffer, and again for a new rate. The
+    // audio callback is stopped while this runs, so replacing it is safe.
+    if ((!loopController || newRate) && audioRecorder.capacity() > 0) {
         loopController.emplace(
             1, static_cast<std::int64_t>(
                    audioRecorder.capacity())); // emplace constructs loop controller inside optional
