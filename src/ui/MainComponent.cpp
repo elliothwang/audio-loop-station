@@ -133,9 +133,29 @@ void MainComponent::timerCallback() {
         lanes[i]->setSlip(trackSlips[i].load());
     }
 
+    updateLiveWaveform();
     updateWaveform(recorderState);
 
     updateTimeline();
+}
+
+void MainComponent::updateLiveWaveform() {
+    juce::AudioIODevice* device = deviceManager.getCurrentAudioDevice();
+    const double sampleRate = device != nullptr ? device->getCurrentSampleRate() : 0.0;
+
+    // Bounded by the queue's size, which also drains every chunk already queued.
+    als::LiveInput chunk;
+    for (int i = 0; i < als::LiveInputQueue::kCapacity && liveInputQueue.pop(chunk); ++i) {
+        if (sampleRate <= 0.0 || chunk.track >= lanes.size()) {
+            continue;
+        }
+        TrackLane& lane = *lanes[chunk.track];
+        if (liveTakes[chunk.track] != chunk.take) {
+            liveTakes[chunk.track] = chunk.take;
+            lane.startLiveWaveform(sampleRate, chunk.loopLength);
+        }
+        lane.addLiveSamples(chunk.position, chunk.samples.data(), chunk.count);
+    }
 }
 
 void MainComponent::deleteClip(std::size_t track) {

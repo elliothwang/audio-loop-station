@@ -61,6 +61,9 @@ class MainComponent : public juce::AudioAppComponent, private juce::Timer {
     // Feeds the time readout, ruler, and playhead from the playing loop.
     void updateTimeline();
 
+    // Draws the recording take's newest input in its lane, starting the lane over for a new take.
+    void updateLiveWaveform();
+
     // Saves every recorded track as a loop called `name`, and reports how it went.
     void saveLoop(const juce::String& name);
 
@@ -166,6 +169,9 @@ class MainComponent : public juce::AudioAppComponent, private juce::Timer {
     std::uint32_t waveformClip = 0;
     std::int64_t waveformLoopLength = 0;
     bool waveformSettingsChanged = false; // UI thread, reverse or slip requires waveform redraw
+
+    // The take each lane last drew live, by the clock time it started. Message thread.
+    std::array<std::optional<std::int64_t>, als::kTrackCount> liveTakes{};
 
     // Points each track's gains at its lane's latest volume, pan, and mute, which they ease toward
     // over the next block. Audio thread only.
