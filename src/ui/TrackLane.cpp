@@ -4,6 +4,7 @@
 
 #include <juce_audio_basics/juce_audio_basics.h>
 
+#include <algorithm>
 #include <cmath>
 #include <initializer_list>
 
@@ -230,6 +231,31 @@ void TrackLane::setWaveform(const juce::AudioBuffer<float>& clip, double sampleR
 
 void TrackLane::clearWaveform() {
     thumbnail.clear();
+    repaint();
+}
+
+void TrackLane::startLiveWaveform(double sampleRate, std::int64_t length) {
+    thumbnail.reset(1, sampleRate, length);
+    livePointIndex = -1;
+    repaint();
+}
+
+void TrackLane::addLiveSamples(std::int64_t position, const float* samples, int count) {
+    const std::int64_t point = position / kSamplesPerThumbnailPoint;
+    const auto offset = static_cast<int>(position % kSamplesPerThumbnailPoint);
+    jassert(count > 0 && offset + count <= kSamplesPerThumbnailPoint);
+
+    // A new point starts silent, like the finished waveform before the take begins.
+    if (point != livePointIndex) {
+        livePoint.fill(0.0f);
+        livePointIndex = point;
+    }
+    std::copy_n(samples, count, livePoint.begin() + offset);
+
+    float* channel = livePoint.data();
+    const int filled = offset + count;
+    thumbnail.addBlock(point * kSamplesPerThumbnailPoint,
+                       juce::AudioBuffer<float>(&channel, 1, filled), 0, filled);
     repaint();
 }
 
