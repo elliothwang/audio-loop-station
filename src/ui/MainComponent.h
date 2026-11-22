@@ -21,6 +21,7 @@
 #include <array>
 #include <atomic>
 #include <cstdint>
+#include <memory>
 
 // Declare main UI component, GUI behaviour in MainComponent.cpp
 class MainComponent : public juce::AudioAppComponent, private juce::Timer {
@@ -52,6 +53,7 @@ class MainComponent : public juce::AudioAppComponent, private juce::Timer {
     juce::Button& stopButton = transportBar.stopButton();
     juce::Button& saveLoopButton = transportBar.saveLoopButton();
     juce::Button& loadLoopButton = transportBar.loadLoopButton();
+    juce::Button& settingsButton = transportBar.settingsButton();
 
     void timerCallback() override;
 
@@ -78,6 +80,10 @@ class MainComponent : public juce::AudioAppComponent, private juce::Timer {
 
     // Opens the saved loops panel with a fresh list, or closes it, and lays the window out again.
     void showLoopsPanel(bool show);
+
+    // Shows `content` in a dialog called `title` over the window. The dialog is modal, but this
+    // returns without waiting for it to close.
+    void showDialog(std::unique_ptr<juce::Component> content, const juce::String& title);
 
     // Returns true if an audio device is running, or shows `title` with why not and returns false.
     bool audioRunning(const juce::String& title);

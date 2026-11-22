@@ -35,7 +35,7 @@ void styleCaption(juce::Label& label, const juce::String& text) {
 
 TrackLane::TrackLane(int trackNumber)
     : deleteButton("Delete track " + juce::String(trackNumber), IconButton::Icon::Delete,
-                   palette::mutedText, false) {
+                   palette::mutedText, IconButton::Style::Flat) {
     numberLabel.setText(juce::String(trackNumber).paddedLeft('0', 2), juce::dontSendNotification);
     numberLabel.setFont(juce::FontOptions(12.0f));
     numberLabel.setColour(juce::Label::textColourId, palette::mutedText);

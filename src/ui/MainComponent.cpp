@@ -14,6 +14,9 @@ constexpr int kFooterHeight = 36; // [px]
 
 constexpr int kLoopsPanelWidth = 260; // [px], beside the lanes while open
 
+constexpr int kSettingsWidth = 500;  // [px]
+constexpr int kSettingsHeight = 360; // [px]
+
 } // namespace
 
 // MainComponent constructor
@@ -33,20 +36,21 @@ MainComponent::MainComponent() {
 
     // Save Loop Dialog box handler
     saveLoopButton.onClick = [this]() {
-        juce::DialogWindow::LaunchOptions options;
+        showDialog(std::make_unique<SaveLoopComponent>(
+                       [this](const juce::String& name) { saveLoop(name); }),
+                   "Save Loop");
+    };
 
-        // Create dialog window's contents with SaveLoopComponent
-        options.content.setOwned(
-            new SaveLoopComponent([this](const juce::String& name) { saveLoop(name); }));
-        options.dialogTitle = "Save Loop";
-        options.dialogBackgroundColour = palette::header;
-        options.componentToCentreAround = this; // Centre over main screen
-        options.escapeKeyTriggersCloseButton = true;
-        options.useNativeTitleBar = true; // Use Windows title bar and close button
-        options.resizable = false;
-
-        options
-            .launchAsync(); // Function can open the dialog box without waiting for user to close.
+    // One input, since a take records the first input channel, and one or two outputs, since the
+    // mixer handles mono and stereo. No MIDI, which the app doesn't use.
+    settingsButton.setTooltip("Settings, available while every track is empty");
+    settingsButton.onClick = [this]() {
+        auto selector = std::make_unique<juce::AudioDeviceSelectorComponent>(
+            deviceManager, /*minInputs*/ 1, /*maxInputs*/ 1, /*minOutputs*/ 1, /*maxOutputs*/ 2,
+            /*midiInputs*/ false, /*midiOutput*/ false, /*stereoPairs*/ false,
+            /*hideAdvanced*/ false);
+        selector->setSize(kSettingsWidth, kSettingsHeight);
+        showDialog(std::move(selector), "Settings");
     };
 
     // Load opens and closes the saved loops panel, which starts closed so the lanes get the width.
@@ -125,6 +129,11 @@ void MainComponent::timerCallback() {
         transport == als::Transport::Playing ||
         transport ==
             als::Transport::RecordingFirstTake); // Stop available during playback or first take
+
+    // A new sample rate clears every track and a pending load, so devices only change while
+    // there's nothing to lose.
+    settingsButton.setEnabled(transport == als::Transport::Empty &&
+                              recorderState != AudioRecorder::RecordingState::Loading);
 
     for (std::size_t i = 0; i < lanes.size(); ++i) {
         lanes[i]->setState(controllerSnapshot.track(i));
@@ -369,6 +378,21 @@ void MainComponent::showLoopsPanel(bool show) {
     loadLoopButton.setTitle(show ? "Close saved loops" : "Load");
     loadLoopButton.setTooltip(show ? "Close saved loops" : "Show saved loops");
     resized();
+}
+
+void MainComponent::showDialog(std::unique_ptr<juce::Component> content,
+                               const juce::String& title) {
+    juce::DialogWindow::LaunchOptions options;
+    options.content.setOwned(content.release());
+    options.dialogTitle = title;
+    options.dialogBackgroundColour = palette::header;
+    options.componentToCentreAround = this; // Centre over main screen
+    options.escapeKeyTriggersCloseButton = true;
+    options.useNativeTitleBar = true; // Use Windows title bar and close button
+    options.resizable = false;
+
+    // Modal, so nothing behind it can be pressed, but opens without waiting for it to close.
+    options.launchAsync();
 }
 
 juce::Result MainComponent::copyLoop(als::SavedLoop& loop) {
