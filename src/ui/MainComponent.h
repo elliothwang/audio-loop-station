@@ -17,8 +17,10 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <optional>
 
+#include <algorithm>
 #include <array>
 #include <atomic>
+#include <cmath>
 #include <cstdint>
 
 // Declare main UI component, GUI behaviour in MainComponent.cpp
@@ -154,6 +156,12 @@ class MainComponent : public juce::AudioAppComponent, private juce::Timer {
 
     // Sample rate passed in from prepareToPlay() call, needed for slipMs -> samples
     double audioSampleRate = 0.0;
+
+    // Estimated input/output delay. Updated during audio setup.
+    std::int64_t recordingLatencySamples = 0;
+
+    // UI will write this setting, audio thread will read when take starts
+    std::atomic<int> recordingAdjustmentMs{0};
 
     // The finished clip count as of the last snapshot publish. Until it matches finishedClips(),
     // the take starts and loop length for the newest clip may not be written yet. Audio thread

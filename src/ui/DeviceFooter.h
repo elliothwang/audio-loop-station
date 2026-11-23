@@ -3,6 +3,7 @@
 // The strip along the bottom of the window. It shows which audio device is in use and how much
 // latency it adds, which is the first thing to check when timing sounds off.
 
+#include <functional>
 #include <juce_audio_devices/juce_audio_devices.h>
 #include <juce_gui_basics/juce_gui_basics.h>
 
@@ -21,6 +22,10 @@ class DeviceFooter : public juce::Component, private juce::ChangeListener {
     // Gives the device description the full width.
     void resized() override;
 
+    // Callback will be connected by MainComponent to recording adjustment. + values will shift
+    // recordings earlier
+    std::function<void(int)> onTimingAdjustmentChange;
+
   private:
     // Refreshes the description when the device manager reports a change.
     void changeListenerCallback(juce::ChangeBroadcaster* source) override;
@@ -30,6 +35,8 @@ class DeviceFooter : public juce::Component, private juce::ChangeListener {
 
     juce::AudioDeviceManager& deviceManager;
     juce::Label deviceLabel;
+    juce::Label timingAdjustmentLabel;
+    juce::Slider timingAdjustmentSlider;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(DeviceFooter)
 };

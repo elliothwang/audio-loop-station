@@ -19,6 +19,25 @@ void MainComponent::prepareToPlay(int /*samplesPerBlockExpected*/, double sample
     audioSampleRate = sampleRate;
     audioRecorder.prepare(sampleRate);
 
+    // Whenver JUCE prepares audio device, refresh latency estimate
+    // If no device, leave at 0.
+    recordingLatencySamples = 0;
+
+    if (auto* device = deviceManager.getCurrentAudioDevice()) {
+        const int inputLatency = std::max(0, device->getInputLatencyInSamples());
+        const int outputLatency = std::max(0, device->getOutputLatencyInSamples());
+
+        // Only device reported latency here. User adjustment will be added when each new take
+        // starts.
+        recordingLatencySamples = static_cast<std::int64_t>(inputLatency) + outputLatency;
+
+        // Show devices reported latency in Debug run
+        DBG("Input latency: " + juce::String(inputLatency) + " samples; output latency: " +
+            juce::String(outputLatency) + " samples; total compensation: " +
+            juce::String(static_cast<double>(recordingLatencySamples) * 1000.0 / sampleRate) +
+            " ms");
+    }
+
     // Starts each track at its current settings, so playback doesn't ramp in from silence.
     if (sampleRate > 0.0) {
         updateGainTargets();
@@ -103,12 +122,30 @@ void MainComponent::getNextAudioBlock(const juce::AudioSourceChannelInfo& buffer
             *loopController = next;
 
             // New recording take, save loop position once
+            // Save the new take's position once. Existing takes aren't moved.
             if (!previousTrack && nextTrack) {
                 const auto& loop = loopController->loop();
-                trackStartPositions[*nextTrack] =
-                    loop ? als::loopPosition(*loop, sampleClock.now())
-                         : 0; // If no loop, save 0 as start position. If loop, save track start
-                              // position within that loop.
+
+                if (loop) {
+                    const auto position = als::loopPosition(*loop, sampleClock.now());
+
+                    // Compensation for delay between speaker playback and receiving from microphone
+                    // audio Postition take earlier by device's latency, wrap appropriately Read the
+                    // adjustment once for this take. Changing the control later won't move an
+                    // existing recording.
+                    const auto extraSamples =
+                        als::millisecondsToSamples(recordingAdjustmentMs.load(), audioSampleRate);
+
+                    const auto totalLatency = recordingLatencySamples + extraSamples;
+
+                    // Position this take earlier by the combined latency compensation. Negative
+                    // compensation moves later. Wrap appropriately.
+                    trackStartPositions[*nextTrack] = static_cast<std::int64_t>(
+                        als::trackWriteIndex(position, loop->length, totalLatency));
+                } else {
+                    // The first take defines the loop; no playback reference exists yet.
+                    trackStartPositions[*nextTrack] = 0;
+                }
             }
 
             if (previousTrack && !nextTrack) {

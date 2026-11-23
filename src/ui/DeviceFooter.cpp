@@ -7,6 +7,24 @@ DeviceFooter::DeviceFooter(juce::AudioDeviceManager& manager) : deviceManager(ma
         juce::FontOptions(juce::Font::getDefaultMonospacedFontName(), 12.0f, juce::Font::plain));
     deviceLabel.setColour(juce::Label::textColourId, palette::mutedText);
     addAndMakeVisible(deviceLabel);
+    timingAdjustmentLabel.setText("Recording adjustment:", juce::dontSendNotification);
+    timingAdjustmentLabel.setColour(juce::Label::textColourId, palette::mutedText);
+    addAndMakeVisible(timingAdjustmentLabel);
+
+    // Extra compensation to be added to device-reported latency. Editable with +/- buttons
+    timingAdjustmentSlider.setSliderStyle(juce::Slider::IncDecButtons);
+    timingAdjustmentSlider.setTextBoxStyle(juce::Slider::TextBoxLeft, false, 85, 24);
+    timingAdjustmentSlider.setRange(-500.0, 500.0, 1.0);
+    timingAdjustmentSlider.setTextValueSuffix(" ms");
+    timingAdjustmentSlider.setValue(0.0, juce::dontSendNotification);
+    timingAdjustmentSlider.onValueChange = [this]() {
+        // Notify MainComponent when the user changes this value.
+        if (onTimingAdjustmentChange) {
+            onTimingAdjustmentChange(static_cast<int>(timingAdjustmentSlider.getValue()));
+        }
+    };
+
+    addAndMakeVisible(timingAdjustmentSlider);
 
     // The device usually opens after the footer exists, so the first real text arrives as a change.
     deviceManager.addChangeListener(this);
@@ -24,7 +42,15 @@ void DeviceFooter::paint(juce::Graphics& g) {
 }
 
 void DeviceFooter::resized() {
-    deviceLabel.setBounds(getLocalBounds().reduced(16, 0));
+    auto area = getLocalBounds().reduced(16, 0);
+
+    // Reserve the right side for the adjustment controls.
+    auto adjustmentArea = area.removeFromRight(340);
+    timingAdjustmentLabel.setBounds(adjustmentArea.removeFromLeft(170));
+    timingAdjustmentSlider.setBounds(adjustmentArea.reduced(0, 6));
+
+    area.removeFromRight(12);
+    deviceLabel.setBounds(area);
 }
 
 void DeviceFooter::changeListenerCallback(juce::ChangeBroadcaster*) {

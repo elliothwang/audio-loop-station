@@ -23,7 +23,10 @@ MainComponent::MainComponent() {
 
     addAndMakeVisible(transportBar);
     addAndMakeVisible(deviceFooter);
-
+    // Store the user's extra compensation for future recordings.
+    deviceFooter.onTimingAdjustmentChange = [this](int milliseconds) {
+        recordingAdjustmentMs.store(milliseconds);
+    };
     addAndMakeVisible(timelineRuler);
     addAndMakeVisible(track1);
     addAndMakeVisible(track2);
