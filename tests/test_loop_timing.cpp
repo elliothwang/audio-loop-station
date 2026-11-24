@@ -176,3 +176,44 @@ TEST_CASE("loop position stays exact over ten minutes", "[loop_timing]") {
         REQUIRE(als::loopPosition(loop, clock.now()) == expected);
     }
 }
+
+TEST_CASE("a chunk ends at the next multiple of the chunk size", "[loop_timing]") {
+    REQUIRE(als::samplesToChunkEnd(0, 0, 4, 100) == 4);
+    REQUIRE(als::samplesToChunkEnd(5, 0, 4, 100) == 3);
+    REQUIRE(als::samplesToChunkEnd(8, 0, 4, 100) == 4);
+}
+
+TEST_CASE("a chunk ends at the loop's end or with the samples left", "[loop_timing]") {
+    REQUIRE(als::samplesToChunkEnd(9, kLoopLength, 4, 100) == 1);
+    REQUIRE(als::samplesToChunkEnd(8, kLoopLength, 4, 100) == 2);
+    REQUIRE(als::samplesToChunkEnd(1, kLoopLength, 4, 2) == 2);
+}
+
+TEST_CASE("chunks cover a block once without crossing a chunk or loop end", "[loop_timing]") {
+    constexpr std::int64_t kChunk = 4;
+    constexpr std::int64_t kBlockSize = 23; // over two loops, so the chunks wrap twice
+    als::SampleClock clock;
+    const als::LoopTiming loop = recordFirstTake(clock, kLoopLength);
+    clock.advance(3); // so the block starts mid-chunk
+
+    // Split the block the way the audio thread does, keeping where each sample landed.
+    std::vector<std::int64_t> positions;
+    for (std::int64_t done = 0; done < kBlockSize;) {
+        const std::int64_t start = als::loopPosition(loop, clock.now() + done);
+        const std::int64_t count =
+            als::samplesToChunkEnd(start, kLoopLength, kChunk, kBlockSize - done);
+        REQUIRE(count >= 1);
+        REQUIRE(start / kChunk == (start + count - 1) / kChunk);
+        REQUIRE(start + count <= kLoopLength);
+        for (std::int64_t i = 0; i < count; ++i) {
+            positions.push_back(start + i);
+        }
+        done += count;
+    }
+
+    std::vector<std::int64_t> expected;
+    for (std::int64_t i = 0; i < kBlockSize; ++i) {
+        expected.push_back(als::loopPosition(loop, clock.now() + i));
+    }
+    REQUIRE(positions == expected);
+}

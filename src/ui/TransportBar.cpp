@@ -8,6 +8,7 @@
 namespace {
 
 constexpr int kTransportButtonSize = 48; // [px]
+constexpr int kSettingsButtonSize = 44;  // [px] square, as tall as Save and Load
 
 // Formats seconds as minutes, then seconds to one decimal place.
 juce::String formatTime(double seconds) {
@@ -21,9 +22,10 @@ juce::String formatTime(double seconds) {
 } // namespace
 
 TransportBar::TransportBar()
-    : record("Record", IconButton::Icon::Record, palette::record, true),
-      play("Play", IconButton::Icon::Play, palette::accent, true),
-      stop("Stop", IconButton::Icon::Stop, palette::mutedText, true) {
+    : record("Record", IconButton::Icon::Record, palette::record, IconButton::Style::Round),
+      play("Play", IconButton::Icon::Play, palette::accent, IconButton::Style::Round),
+      stop("Stop", IconButton::Icon::Stop, palette::mutedText, IconButton::Style::Round),
+      settings("Settings", IconButton::Icon::Settings, palette::text, IconButton::Style::Boxed) {
     appLabel.setText("AUDIO LOOP STATION", juce::dontSendNotification);
     appLabel.setFont(juce::FontOptions(11.0f));
     appLabel.setColour(juce::Label::textColourId, palette::mutedText);
@@ -35,8 +37,9 @@ TransportBar::TransportBar()
         juce::FontOptions(juce::Font::getDefaultMonospacedFontName(), 26.0f, juce::Font::plain));
     setTime(0.0, 0.0);
 
-    for (juce::Component* child : std::initializer_list<juce::Component*>{
-             &appLabel, &loopNameLabel, &timeLabel, &record, &play, &stop, &saveLoop, &loadLoop}) {
+    for (juce::Component* child :
+         std::initializer_list<juce::Component*>{&appLabel, &loopNameLabel, &timeLabel, &record,
+                                                 &play, &stop, &saveLoop, &loadLoop, &settings}) {
         addAndMakeVisible(child);
     }
 }
@@ -71,6 +74,9 @@ void TransportBar::resized() {
     }
     area.removeFromLeft(12);
 
+    settings.setBounds(area.removeFromRight(kSettingsButtonSize)
+                           .withSizeKeepingCentre(kSettingsButtonSize, kSettingsButtonSize));
+    area.removeFromRight(8);
     loadLoop.setBounds(area.removeFromRight(64).withSizeKeepingCentre(64, 44));
     area.removeFromRight(8);
     saveLoop.setBounds(area.removeFromRight(64).withSizeKeepingCentre(64, 44));
@@ -96,4 +102,8 @@ juce::Button& TransportBar::saveLoopButton() noexcept {
 
 juce::Button& TransportBar::loadLoopButton() noexcept {
     return loadLoop;
+}
+
+juce::Button& TransportBar::settingsButton() noexcept {
+    return settings;
 }

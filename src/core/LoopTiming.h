@@ -18,6 +18,11 @@ struct LoopTiming {
 
 [[nodiscard]] std::int64_t loopPosition(const LoopTiming& loop, std::int64_t time) noexcept;
 
+// Returns how many of the `remaining` samples from `position` fit before the next multiple of
+// `chunk`, and before the loop's end when `length` is positive. At least 1 while `remaining` is.
+[[nodiscard]] std::int64_t samplesToChunkEnd(std::int64_t position, std::int64_t length,
+                                             std::int64_t chunk, std::int64_t remaining) noexcept;
+
 // Positive slip plays the track later, whether or not it's reversed.
 [[nodiscard]] std::size_t trackReadIndex(std::int64_t position, std::int64_t length,
                                          std::int64_t slip, bool reversed) noexcept;

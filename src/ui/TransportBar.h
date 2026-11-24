@@ -1,13 +1,13 @@
 #pragma once
 
 // The header across the top of the window. It shows the loop's name and time and holds the
-// transport and file buttons, which MainComponent wires up.
+// transport, file, and settings buttons, which MainComponent wires up.
 
 #include "IconButton.h"
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
-// Record, play, and stop as icons, the time readout, and Save and Load.
+// Record, play, and stop as icons, the time readout, Save and Load, and a settings gear.
 class TransportBar : public juce::Component {
   public:
     // The name shown before a loop is saved or loaded.
@@ -43,6 +43,9 @@ class TransportBar : public juce::Component {
     // Returns the Load button.
     [[nodiscard]] juce::Button& loadLoopButton() noexcept;
 
+    // Returns the settings button, which opens the audio device settings.
+    [[nodiscard]] juce::Button& settingsButton() noexcept;
+
   private:
     juce::Label appLabel;
     juce::Label loopNameLabel;
@@ -52,6 +55,7 @@ class TransportBar : public juce::Component {
     IconButton stop;
     juce::TextButton saveLoop{"Save"};
     juce::TextButton loadLoop{"Load"};
+    IconButton settings;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(TransportBar)
 };
