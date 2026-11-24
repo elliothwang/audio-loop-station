@@ -1,48 +1,26 @@
 # Audio Loop Station
 
-Audo Loop Station: a desktop looper for layering up to four mono tracks over a shared sample clock.
+A desktop looper for Windows that layers up to four mono tracks over a shared loop.
+
 Team: Elliot Hwang, Hunter Shipman, Robert Thom.
 
-## Layout
+![A four-track loop playing, with waveforms, the playhead, and level meters](docs/images/loop-playing.png)
 
-| Folder     | Purpose                                                          | Framework headers allowed |
-| ---------- | ---------------------------------------------------------------- | ------------------------- |
-| `src/core/`    | Sample clock, loop timing, track data, loop controller       | No                        |
-| `src/audio/`   | Audio engine: device I/O and callback                        | Yes (JUCE or miniaudio)   |
-| `src/storage/` | Save and load loops (one WAV per track plus a settings file) | Yes (JUCE files and WAV)  |
-| `src/ui/`      | Screens and controls                                         | Yes (JUCE or Dear ImGui)  |
-| `src/app/`     | `main()`, wires everything together                          | Yes                       |
-| `tests/`       | Unit tests for `core` and `storage`                          | n/a                       |
-| `docs/`        | Project plan and architecture notes                          | n/a                       |
+## Quick start
 
-`src/core/` must not include JUCE, miniaudio, or Dear ImGui headers. The `no_framework_includes` test enforces this.
+Windows 10 or 11 (64-bit) only. You need a microphone, and headphones are recommended.
 
-## Requirements
+1. Download `AudioLoopStation.exe` from the
+   [latest release](https://github.com/elliothwang/audio-loop-station/releases/latest).
+2. Run it. If Windows shows **Windows protected your PC**, click **More info**, then **Run anyway**.
+3. Press **Record**, play something, and press **Record** again. Your loop starts playing.
 
-- Windows with a C++17 compiler (Visual Studio or Build Tools with the C++ workload)
-- CMake 3.21 or newer
-- git (CMake uses it to download Catch2)
+Nothing else needs to be installed. If the app can't find your microphone, see
+[Install and run](docs/install.md).
 
-Optional: `clang-format`, for formatting (it also ships with Visual Studio).
+## Documentation
 
-## Build and test
-
-```
-cmake --preset windows
-cmake --build --preset debug
-ctest --preset debug
-```
-
-The first configure downloads Catch2, so it needs network access.
-
-## Formatting
-
-```
-clang-format -i <changed files>
-clang-format --dry-run --Werror <changed files>
-```
-
-## Team workflow
-
-- Changes to `main` go through a pull request with one approving review.
-- Every PR must build, pass the tests, and you must be able to explain every line.
+- [Install and run](docs/install.md): download, first launch, audio setup, and troubleshooting
+- [User guide](docs/user-guide.md): a step-by-step tour, every control, limits, and where loops are
+  saved
+- [Development](docs/development.md): building from source, tests, CI, code layout, and releasing
