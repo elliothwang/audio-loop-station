@@ -275,20 +275,11 @@ void MainComponent::updateRecordButton(AudioRecorder::RecordingState recorderSta
         recordButton.setEnabled(true);
         break;
 
-    case AudioRecorder::RecordingState::StartRequested:
-        recordButton.setButtonText("Starting...");
-        recordButton.setEnabled(true);
-        break;
-
     case AudioRecorder::RecordingState::Recording:
         recordButton.setButtonText("Finish Recording");
         recordButton.setEnabled(true);
         break;
 
-    case AudioRecorder::RecordingState::StopRequested:
-        recordButton.setButtonText("Stopping...");
-        recordButton.setEnabled(false);
-        break;
     case AudioRecorder::RecordingState::Saving:
         recordButton.setButtonText("Saving...");
         recordButton.setEnabled(false);

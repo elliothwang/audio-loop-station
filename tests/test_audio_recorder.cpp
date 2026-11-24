@@ -16,22 +16,18 @@ const std::vector<float> kInput{0.25f, -0.5f, 0.75f};
 
 // Records kInput as one finished clip.
 void recordClip(AudioRecorder& recorder) {
-    REQUIRE(recorder.requestStart());
+    REQUIRE(recorder.beginControlledTake(0));
     recorder.processInput(kInput.data(), static_cast<int>(kInput.size()));
-    REQUIRE(recorder.requestStop());
-    recorder.processInput(nullptr, 0); // the audio thread finishes the stop
+    recorder.finishControlledTake();
     REQUIRE(recorder.getState() == AudioRecorder::RecordingState::Ready);
 }
 
 } // namespace
 
-TEST_CASE("a finished clip can be copied and played", "[audio_recorder]") {
+TEST_CASE("a finished clip can be copied", "[audio_recorder]") {
     AudioRecorder recorder;
     recorder.prepare(kSampleRate);
     recordClip(recorder);
-
-    REQUIRE(recorder.clipLength() == kInput.size());
-    REQUIRE(std::vector<float>(recorder.clip(), recorder.clip() + kInput.size()) == kInput);
 
     Tracks samples;
     double sampleRate = 0.0;
@@ -46,12 +42,10 @@ TEST_CASE("there's no clip while recording or before one exists", "[audio_record
     recorder.prepare(kSampleRate);
     Tracks samples;
     double sampleRate = 0.0;
-    REQUIRE(recorder.clipLength() == 0);
     REQUIRE_FALSE(recorder.copyTracks(samples, sampleRate));
 
-    REQUIRE(recorder.requestStart());
+    REQUIRE(recorder.beginControlledTake(0));
     recorder.processInput(kInput.data(), static_cast<int>(kInput.size()));
-    REQUIRE(recorder.clipLength() == 0);
     REQUIRE_FALSE(recorder.copyTracks(samples, sampleRate));
 }
 
@@ -59,12 +53,15 @@ TEST_CASE("a restart at the same rate keeps the clip", "[audio_recorder]") {
     AudioRecorder recorder;
     recorder.prepare(kSampleRate);
     recordClip(recorder);
+    Tracks samples;
+    double sampleRate = 0.0;
 
     recorder.prepare(kSampleRate);
-    REQUIRE(recorder.clipLength() == kInput.size());
+    REQUIRE(recorder.copyTracks(samples, sampleRate));
+    REQUIRE(samples == Tracks{kInput, {}, {}, {}});
 
     recorder.prepare(44100.0); // a new rate no longer matches the clip
-    REQUIRE(recorder.clipLength() == 0);
+    REQUIRE_FALSE(recorder.copyTracks(samples, sampleRate));
 }
 
 TEST_CASE("loaded tracks replace every track at the next block", "[audio_recorder]") {
@@ -78,8 +75,11 @@ TEST_CASE("loaded tracks replace every track at the next block", "[audio_recorde
     samples[3] = {0.125f};
     const Starts starts{0, 4, 0, 5};
     REQUIRE(recorder.loadTracks(samples, starts, 6, kSampleRate).wasOk());
-    REQUIRE(recorder.clipLength() == 0); // not playable until the audio thread copies it in
-    REQUIRE_FALSE(recorder.requestStart());
+    Tracks copied;
+    double sampleRate = 0.0;
+    // Not ready to copy until the audio thread copies the load in.
+    REQUIRE_FALSE(recorder.copyTracks(copied, sampleRate));
+    REQUIRE_FALSE(recorder.beginControlledTake(0));
 
     const auto loaded = recorder.processInput(nullptr, 0);
     REQUIRE(loaded.has_value());
@@ -88,8 +88,6 @@ TEST_CASE("loaded tracks replace every track at the next block", "[audio_recorde
     REQUIRE(loaded->hasAudio == std::array<bool, als::kTrackCount>{false, true, false, true});
     REQUIRE(recorder.getState() == AudioRecorder::RecordingState::Ready);
 
-    Tracks copied;
-    double sampleRate = 0.0;
     REQUIRE(recorder.copyTracks(copied, sampleRate));
     REQUIRE(copied == samples);
     REQUIRE_FALSE(recorder.processInput(nullptr, 0).has_value()); // a load applies only once
@@ -109,7 +107,7 @@ TEST_CASE("tracks that don't fit aren't loaded", "[audio_recorder]") {
                 .failed());
     REQUIRE(recorder.loadTracks(oneTrack, noStarts, 61 * 48000, kSampleRate).failed());
 
-    REQUIRE(recorder.requestStart());
+    REQUIRE(recorder.beginControlledTake(0));
     REQUIRE(recorder.loadTracks(oneTrack, noStarts, inputLength, kSampleRate).failed());
 }
 
