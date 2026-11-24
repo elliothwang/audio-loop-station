@@ -45,7 +45,7 @@ class MainComponent : public juce::AudioAppComponent, private juce::Timer {
 
     TransportBar transportBar;
 
-    // The transport bar owns these buttons. The references keep the names the audio code uses.
+    // The transport bar owns these buttons. The references let this component wire them up.
     juce::Button& recordButton = transportBar.recordButton();
     juce::Button& playButton = transportBar.playButton();
     juce::Button& stopButton = transportBar.stopButton();
@@ -81,7 +81,8 @@ class MainComponent : public juce::AudioAppComponent, private juce::Timer {
     // Stops playback and empties selected track, and reports a failure.
     void deleteClip(std::size_t track);
 
-    // Redraws track 1's waveform when a new clip finishes, and clears it while recording.
+    // Redraws every track's waveform when a clip finishes or the loop, reverse, or slip changes,
+    // and clears the waveforms of empty tracks.
     void updateWaveform(AudioRecorder::RecordingState recorderState);
 
     TimelineRuler timelineRuler;
