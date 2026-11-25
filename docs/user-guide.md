@@ -80,7 +80,7 @@ settings (volume, pan, mute, reverse, slip); those reset when you load.
 2. Pick a loop and press **Load**, or double-click it.
 3. Press **Play**.
 
-![The saved loops panel listing three loops and their lengths](images/saved-loops-panel.png)
+![The saved loops panel listing saved loops and their lengths, with one selected](images/saved-loops-panel.png)
 
 Loading replaces all four tracks and leaves the loop stopped. Press **X** to close the panel without
 loading. A loop only loads if your audio device runs at the sample rate it was saved at.
