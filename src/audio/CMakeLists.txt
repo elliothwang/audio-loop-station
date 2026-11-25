@@ -3,6 +3,7 @@ add_library(als_audio STATIC
     AudioRecorder.cpp
     AudioRecorder.h
     AudioCommandQueue.h
+    LiveInputQueue.h
     TrackBuffers.cpp
     TrackBuffers.h
     )

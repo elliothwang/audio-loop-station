@@ -12,10 +12,15 @@ namespace {
 constexpr double kGainRampSeconds = 0.02; // [s], long enough that a control change won't click
 constexpr int edgeGainMilliseconds = 5;   // [ms] at each end of the loop, so the wrap doesn't click
 
+static_assert(als::kLiveInputChunk == TrackLane::kSamplesPerThumbnailPoint,
+              "a live input chunk has to fit in one thumbnail point");
+
 } // namespace
 
 // Pass sample rate to recorder and player and prepare buffers.
 void MainComponent::prepareToPlay(int /*samplesPerBlockExpected*/, double sampleRate) {
+    // A new rate clears and resizes the recorder's tracks, so the controller has to start over.
+    const bool newRate = sampleRate != audioSampleRate;
     audioSampleRate = sampleRate;
     audioRecorder.prepare(sampleRate);
 
@@ -59,8 +64,9 @@ void MainComponent::prepareToPlay(int /*samplesPerBlockExpected*/, double sample
         }
     }
 
-    // Construct loop controller once, and after recorder has allocated buffer
-    if (!loopController && audioRecorder.capacity() > 0) {
+    // Construct loop controller after recorder has allocated buffer, and again for a new rate. The
+    // audio callback is stopped while this runs, so replacing it is safe.
+    if ((!loopController || newRate) && audioRecorder.capacity() > 0) {
         loopController.emplace(
             1, static_cast<std::int64_t>(
                    audioRecorder.capacity())); // emplace constructs loop controller inside optional
@@ -173,6 +179,11 @@ void MainComponent::getNextAudioBlock(const juce::AudioSourceChannelInfo& buffer
     // processInput
     const auto loaded = audioRecorder.processInput(
         buffer->getReadPointer(0, bufferToFill.startSample), inputSampleCount);
+
+    // Before the output clear below, which overwrites the input.
+    if (loopController) {
+        publishLiveInput(buffer->getReadPointer(0, bufferToFill.startSample), inputSampleCount);
+    }
 
     // A load replaced every track this block, so each take's start and the loop come from it.
     if (loaded.has_value()) {
@@ -346,6 +357,38 @@ void MainComponent::mixTracks(const als::LoopTiming& timing, std::int64_t blockS
     // one tick.
     for (size_t i = 0; i < als::kTrackCount; i++) {
         trackPeaks[i].store(std::max(trackPeaks[i].load(), blockTrackPeaks[i]));
+    }
+}
+
+void MainComponent::publishLiveInput(const float* input, int sampleCount) {
+    jassert(loopController.has_value());
+    const auto track = loopController->recordingTrack();
+    const auto take = loopController->takeStart();
+    if (!track || !take || input == nullptr) {
+        return;
+    }
+
+    const auto now = sampleClock.now();
+    const auto& loop = loopController->loop();
+    als::LiveInput chunk;
+    chunk.track = *track;
+    chunk.take = *take;
+    chunk.loopLength = loop ? loop->length : 0;
+
+    for (int done = 0; done < sampleCount; done += chunk.count) {
+        // Each sample goes where it will play, the same place the finished waveform draws it.
+        const auto time = now + done;
+        chunk.position = loop ? als::loopPosition(*loop, time) : time - *take;
+
+        // A chunk ends at the next thumbnail point or the loop's end, whichever comes first.
+        chunk.count = static_cast<int>(als::samplesToChunkEnd(
+            chunk.position, chunk.loopLength, als::kLiveInputChunk, sampleCount - done));
+        std::copy_n(input + done, chunk.count, chunk.samples.begin());
+
+        // A full queue means the UI is behind. The take's finished waveform fills the gap.
+        if (!liveInputQueue.push(chunk)) {
+            return;
+        }
     }
 }
 

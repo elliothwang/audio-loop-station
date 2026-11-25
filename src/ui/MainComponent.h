@@ -3,6 +3,7 @@
 #include "AudioCommandQueue.h"
 #include "AudioRecorder.h"
 #include "DeviceFooter.h"
+#include "LiveInputQueue.h"
 #include "LoadLoopComponent.h"
 #include "LoopStationLookAndFeel.h"
 #include "Playhead.h"
@@ -22,6 +23,7 @@
 #include <atomic>
 #include <cmath>
 #include <cstdint>
+#include <memory>
 
 // Declare main UI component, GUI behaviour in MainComponent.cpp
 class MainComponent : public juce::AudioAppComponent, private juce::Timer {
@@ -47,12 +49,13 @@ class MainComponent : public juce::AudioAppComponent, private juce::Timer {
 
     TransportBar transportBar;
 
-    // The transport bar owns these buttons. The references keep the names the audio code uses.
+    // The transport bar owns these buttons. The references let this component wire them up.
     juce::Button& recordButton = transportBar.recordButton();
     juce::Button& playButton = transportBar.playButton();
     juce::Button& stopButton = transportBar.stopButton();
     juce::Button& saveLoopButton = transportBar.saveLoopButton();
     juce::Button& loadLoopButton = transportBar.loadLoopButton();
+    juce::Button& settingsButton = transportBar.settingsButton();
 
     void timerCallback() override;
 
@@ -61,6 +64,9 @@ class MainComponent : public juce::AudioAppComponent, private juce::Timer {
 
     // Feeds the time readout, ruler, and playhead from the playing loop.
     void updateTimeline();
+
+    // Draws the recording take's newest input in its lane, starting the lane over for a new take.
+    void updateLiveWaveform();
 
     // Saves every recorded track as a loop called `name`, and reports how it went.
     void saveLoop(const juce::String& name);
@@ -77,13 +83,23 @@ class MainComponent : public juce::AudioAppComponent, private juce::Timer {
     // Opens the saved loops panel with a fresh list, or closes it, and lays the window out again.
     void showLoopsPanel(bool show);
 
+    // Shows `content` in a dialog called `title` over the window and returns it. The dialog is
+    // modal, but this returns without waiting for it to close.
+    juce::DialogWindow* showDialog(std::unique_ptr<juce::Component> content,
+                                   const juce::String& title);
+
+    // The open Settings dialog, if any. Its device selector listens to deviceManager, so the
+    // destructor closes it rather than let JUCE delete it after this component at shutdown.
+    juce::Component::SafePointer<juce::DialogWindow> settingsDialog;
+
     // Returns true if an audio device is running, or shows `title` with why not and returns false.
     bool audioRunning(const juce::String& title);
 
     // Stops playback and empties selected track, and reports a failure.
     void deleteClip(std::size_t track);
 
-    // Redraws track 1's waveform when a new clip finishes, and clears it while recording.
+    // Redraws every track's waveform when a clip finishes or the loop, reverse, or slip changes,
+    // and clears the waveforms of empty tracks.
     void updateWaveform(AudioRecorder::RecordingState recorderState);
 
     TimelineRuler timelineRuler;
@@ -101,6 +117,7 @@ class MainComponent : public juce::AudioAppComponent, private juce::Timer {
     // ----- Audio, needs declared here -----
     AudioRecorder audioRecorder;
     als::AudioCommandQueue commandQueue;        // UI will send commands to audio thread
+    als::LiveInputQueue liveInputQueue;         // Audio thread sends the recording take to the UI
     als::SampleClock sampleClock;               // Clock to track processed samples
     als::ControllerSnapshot controllerSnapshot; // Snapshot will provide state for UI to access
     std::optional<als::LoopController>
@@ -173,6 +190,9 @@ class MainComponent : public juce::AudioAppComponent, private juce::Timer {
     std::int64_t waveformLoopLength = 0;
     bool waveformSettingsChanged = false; // UI thread, reverse or slip requires waveform redraw
 
+    // The take each lane last drew live, by the clock time it started. Message thread.
+    std::array<std::optional<std::int64_t>, als::kTrackCount> liveTakes{};
+
     // Points each track's gains at its lane's latest volume, pan, and mute, which they ease toward
     // over the next block. Audio thread only.
     void updateGainTargets();
@@ -182,6 +202,11 @@ class MainComponent : public juce::AudioAppComponent, private juce::Timer {
     // one output and pan is skipped. Audio thread only, and only while loopController is set.
     void mixTracks(const als::LoopTiming& timing, std::int64_t blockStart, int sampleCount,
                    float* left, float* right);
+
+    // Queues the `sampleCount` input samples this block recorded, in chunks that each fit one
+    // thumbnail point, so the UI can draw the take as it records. Drops what doesn't fit while the
+    // UI is behind. Audio thread only, and only while loopController is set.
+    void publishLiveInput(const float* input, int sampleCount);
 
     void playButtonClicked();
     void stopButtonClicked();

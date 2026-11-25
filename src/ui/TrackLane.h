@@ -10,6 +10,8 @@
 #include <juce_audio_utils/juce_audio_utils.h>
 #include <juce_gui_basics/juce_gui_basics.h>
 
+#include <array>
+#include <cstdint>
 #include <functional>
 
 // A track's name, state, volume, mute, reverse, slip, pan, meter, and delete, laid out in one row.
@@ -20,6 +22,9 @@ class TrackLane : public juce::Component {
 
     // The volume gain a lane starts at, which is full.
     static constexpr float kDefaultVolume = 1.0f;
+
+    // Samples per point in the thumbnail, enough detail for a lane's width.
+    static constexpr int kSamplesPerThumbnailPoint = 256;
 
     // Lanes are numbered from 1 for display.
     explicit TrackLane(int trackNumber);
@@ -39,6 +44,14 @@ class TrackLane : public juce::Component {
 
     // Removes the waveform, so the lane shows its empty outline.
     void clearWaveform();
+
+    // Starts drawing a take as it records, at `sampleRate`, across a loop of `length` samples. A
+    // `length` of 0 is a first take, which grows to fill the lane.
+    void startLiveWaveform(double sampleRate, std::int64_t length);
+
+    // Draws `count` samples of the recording take from loop position `position`. They have to fit
+    // in one thumbnail point.
+    void addLiveSamples(std::int64_t position, const float* samples, int count);
 
     // Shows a level from 0 to 1 in the lane's meter.
     void setLevel(float level);
@@ -72,9 +85,6 @@ class TrackLane : public juce::Component {
     std::function<void(int)> onSlipChange;
 
   private:
-    // Samples per point in the thumbnail, enough detail for a lane's width.
-    static constexpr int kSamplesPerThumbnailPoint = 256;
-
     // Moves the slip offset and updates its readout.
     void nudgeSlip(int deltaMs);
 
@@ -94,6 +104,11 @@ class TrackLane : public juce::Component {
     juce::AudioFormatManager formatManager;
     juce::AudioThumbnailCache thumbnailCache{1};
     juce::AudioThumbnail thumbnail{kSamplesPerThumbnailPoint, formatManager, thumbnailCache};
+
+    // The thumbnail point the recording take is filling. It's added again whole each time, since
+    // adding just the new samples would replace the point's earlier peaks with theirs.
+    std::array<float, kSamplesPerThumbnailPoint> livePoint{};
+    std::int64_t livePointIndex = -1; // -1 until the take's first samples arrive
 
     juce::Label volumeLabel;
     juce::Slider volumeSlider;

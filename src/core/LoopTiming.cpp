@@ -1,5 +1,6 @@
 #include "LoopTiming.h"
 
+#include <algorithm>
 #include <cassert>
 #include <cmath>
 
@@ -26,6 +27,17 @@ std::optional<LoopTiming> loopFromFirstTake(std::int64_t start, std::int64_t sto
 
 std::int64_t loopPosition(const LoopTiming& loop, std::int64_t time) noexcept {
     return wrap(time - loop.origin, loop.length);
+}
+
+std::int64_t samplesToChunkEnd(std::int64_t position, std::int64_t length, std::int64_t chunk,
+                               std::int64_t remaining) noexcept {
+    assert(position >= 0 && chunk > 0 && "position can't be negative and a chunk needs samples");
+    std::int64_t room = chunk - position % chunk;
+    if (length > 0) {
+        assert(position < length && "position must be inside the loop");
+        room = std::min(room, length - position);
+    }
+    return std::min(room, remaining);
 }
 
 std::size_t trackReadIndex(std::int64_t position, std::int64_t length, std::int64_t slip,
