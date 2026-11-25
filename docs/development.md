@@ -38,9 +38,12 @@ clang-format --dry-run --Werror <changed files>
 
 ## Continuous integration
 
-GitHub Actions runs two jobs on every pull request and every push to `main`:
+GitHub Actions runs three jobs on every pull request and every push to `main`:
 
 - **build-and-test**: configures, builds Debug, and runs `ctest` on Windows.
+- **release-exe**: builds Release for x64, runs `ctest` on it, and uploads `AudioLoopStation.exe` as
+  the run's **AudioLoopStation** artifact. Download it from the run's **Summary** page to try a PR's
+  build without compiling.
 - **format**: runs `clang-format --dry-run --Werror` on every C++ file.
 
 ## Layout
@@ -60,24 +63,26 @@ enforces this.
 
 ## Releasing
 
-Graders and users download the exe from GitHub Releases, so each release attaches a Release build.
+Graders and users download the exe from GitHub Releases, so each release attaches the x64 Release
+build from CI. Don't attach a local build: on an ARM PC it's ARM64, which won't run on an x64 PC.
 
-1. Bump `VERSION` in the `project()` line of the top-level `CMakeLists.txt` if it changed.
-2. Build Release:
+1. Bump `VERSION` in the `project()` line of the top-level `CMakeLists.txt` if it changed, and merge
+   to `main`.
+2. Download the exe from the CI run for that commit on `main`:
    ```
-   cmake --preset windows
-   cmake --build --preset release
-   ctest --preset release
+   gh run list --workflow CI --branch main --limit 1
+   gh run download <run id> --name AudioLoopStation
    ```
-3. Check the exe doesn't need the Visual C++ runtime. From a Developer PowerShell for VS 2022:
+   This saves `AudioLoopStation.exe`, already renamed, since GitHub replaces spaces in asset names
+   and the install guide links to that name.
+3. Optionally, check the exe doesn't need the Visual C++ runtime. From a Developer PowerShell for
+   VS 2022:
    ```
-   dumpbin /dependents "build\src\app\audio_loop_station_artefacts\Release\Audio Loop Station.exe"
+   dumpbin /dependents AudioLoopStation.exe
    ```
    The list should only have Windows system DLLs, with no `MSVCP140.dll`, `VCRUNTIME140.dll`, or
    `ucrtbase.dll`.
-4. Copy the exe to `AudioLoopStation.exe`, since GitHub replaces spaces in asset names, and the
-   install guide links to that name.
-5. Create the release, with the tag matching the version:
+4. Create the release, with the tag matching the version:
    ```
    gh release create v0.1.0 AudioLoopStation.exe --title "v0.1.0" --notes "<what changed>"
    ```

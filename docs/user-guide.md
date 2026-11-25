@@ -20,7 +20,7 @@ stops on its own at 60 seconds.
 ![Recording the first take, with Track 1 showing REC](images/recording-first-take.png)
 
 The timer stays at 0:00.0 while the first take records, because the loop's length isn't known until
-it finishes. The track's waveform appears once the take is done.
+it finishes. The track's waveform draws as you record, so you can see the take coming in.
 
 ### 2. Record over the loop
 
@@ -85,11 +85,18 @@ settings (volume, pan, mute, reverse, slip); those reset when you load.
 Loading replaces all four tracks and leaves the loop stopped. Press **X** to close the panel without
 loading. A loop only loads if your audio device runs at the sample rate it was saved at.
 
+### 8. Change the audio device
+
+Press **Settings** (the gear) to pick the output, the input and which input channel records, the
+sample rate, and the buffer size. It's only available while every track is empty, since a new sample
+rate would clear them. See [Install and run](install.md#3-check-the-audio-device) for each setting.
+
 ## Limits
 
 - Four tracks, each one mono.
 - A loop is at most 60 seconds long.
 - Saved loops only load at the sample rate they were saved at.
+- Audio device settings aren't remembered between launches.
 - There's no undo. Deleting a track or loading a loop replaces what was there.
 
 ## Where loops are saved
