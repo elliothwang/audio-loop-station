@@ -17,6 +17,26 @@ jobs:
       - name: Test
         run: ctest --preset debug
 
+  release-exe:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      # x64 runs on every Windows PC, and on ARM through emulation.
+      - name: Configure
+        run: cmake --preset windows -A x64
+      - name: Build
+        run: cmake --build --preset release
+      - name: Test
+        run: ctest --preset release
+      # GitHub replaces spaces in asset names, and the install guide links to this name.
+      - name: Rename
+        run: Copy-Item "build/src/app/audio_loop_station_artefacts/Release/Audio Loop Station.exe" AudioLoopStation.exe
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AudioLoopStation
+          path: AudioLoopStation.exe
+          if-no-files-found: error
+
   format:
     runs-on: ubuntu-latest
     steps:
